@@ -43,71 +43,61 @@ set[Declaration] fileASTs() = createAstsFromFiles({|project://sqat-analysis/src/
 alias CC = rel[loc method, int cc];
 
 /* Returns 1 if the given string operator is a comparator */
-int isBooleanOperator (str op) {
+bool isBooleanOperator (str op) {
 	if ((op == "\>") || (op == "\>=") || (op == "==") || 
 		(op == "\<=") || (op == "\<") || (op == "!=") || 
 		(op == "||") || (op == "&&")) {
-		return 1;
+		return true;
 	}
-	return 0;
+	return false;
 }
 
-/* Computes cyclomatic complexity of an expression */
-int ecc (Expression e) {
-	int c = 0;
-	visit (e) {
-		case e_infix : \infix(Expression lhs, str operator, Expression rhs) :
-			c = c + isBooleanOperator(operator) + ecc(lhs) + ecc(rhs);
-		case e_conditional : \conditional(Expression expression, Expression thenBranch, Expression elseBranch) :
-			c = c + ecc(expression) + ecc(thenBranch) + ecc(elseBranch);
-	}
-	return c;
-}
-
-
-/* Computes the cyclomatic complexity of a method */
+/* Computes the cyclomatic complexity of a method (parses expressions too). */
 int mcc (Statement s) {
-	int c = 0;
+	int c = 1;
 	
 	visit (s) {
+		
+		/* Matching for: Expressions */
+		case e_infix : \infix(Expression lhs, str operator, Expression rhs) :
+			c = c + (isBooleanOperator(operator) ? 1 : 0);
+			
+		/* Matching for: Control-Flow Statements */
 		case s_if : \if(Expression condition, Statement thenBranch) :
-			c = c + 1 + ecc(condition) + mcc(thenBranch);
+			c = c + 1;
 			
 		case s_ifElse : \if(Expression condition, Statement thenBranch, Statement elseBranch) :
-			c = c + 2 + ecc(condition) + mcc(thenBranch) + mcc(elseBranch);
+			c = c + 1;
 			
 		case s_do : \do(Statement body, Expression condition) :
-			c = c + 1 + ecc(condition) + mcc(body);
+			c = c + 1;
 			
 		case s_forEach : \foreach(Declaration parameter, Expression collection, Statement body) :
-			c = c + 1 + mcc(body);
+			c = c + 1;
 			
 		case s_forCond : \for(list[Expression] initializers, Expression condition, list[Expression] updaters, Statement body) :
-			c = c + 1 + ecc(condition) + ( 0 | it + ecc(k) | k <- initializers ) + ( 0 | it + ecc(k) | k <- updaters) + mcc(body);
+			c = c + 1;
 			
 		case s_for : \for(list[Expression] initializers, list[Expression] updaters, Statement body) :
-			c = c + 1 + ( 0 | it + ecc(k) | k <- updaters) + mcc(body);
+			c = c + 1;
 			
 		case s_label : \label(str name, Statement body) :
-			c = c + mcc(body);
+			c = c;
 			
 		case s_switch : \switch(Expression expression, list[Statement] statements) :
-			c = c + 1 + ecc(expression) + ( 0 | it + mcc(k) | k <- statements );
-			
-		case s_syncStatement : synchronizedStatement(Expression lock, Statement body) :
-			c = c + 1 + ecc(lock) + mcc(body);
+			c = c + 1;
 			
 		case s_try : \try(Statement body, list[Statement] catchClauses) :
-			c = c + 1 + mcc(body) + ( 0 | it + mcc(k) | k <- catchClauses );
+			c = c + 1;
 			
 		case s_tryFinally : \try(Statement body, list[Statement] catchClauses, f : Statement \finally)  :
-			c = c + 1 + mcc(body) + ( 0 | it + mcc(k) | k <- catchClauses) + mcc(f);
+			c = c + 1;
 			
 		case s_catch : \catch(Declaration exception, Statement body) :
-			c = c + mcc(body);
+			c = c + 1;
 			
 		case s_while : \while(Expression condition, Statement body) :
-			c = c + ecc(condition) + mcc(body);
+			c = c + 1;
 	}
 	return c;
 }
@@ -117,7 +107,7 @@ CC cc(set[Declaration] decls) {
   
   visit (decls) {
   	case m : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
-  		result = result + {<m.src, 1 + mcc(impl)>};
+  		result = result + {<m.src, mcc(impl)>};
   }
   
   return result;

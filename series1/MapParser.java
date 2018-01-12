@@ -44,7 +44,7 @@ public class MapParser {
 	}
 	
 	public testFunction(int ourArg1, int ourArg2) {
-		if((ourArg1 == ourArg2) || ourArg1) {}
+		if((ourArg1 == ourArg2 || ourArg1)) {}
 		
 		
 	}
