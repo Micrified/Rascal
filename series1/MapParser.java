@@ -43,10 +43,25 @@ public class MapParser {
 		this.boardCreator = boardFactory;
 	}
 	
-	public testFunction(int ourArg1, int ourArg2) {
-		if((ourArg1 == ourArg2 || ourArg1)) {}
-		
-		
+	/**
+	 * Checks if the given password is valid.
+	 * 
+	 * @param password The password to validate.
+	 * @return {@code true} if the password is valid, {@code false} otherwise.
+	 */
+	public static boolean validatePassword(String password) {
+	    int len = password.length();
+	    if (len < 8 || len > 20)
+	        return false;
+	    boolean hasLetters = false;
+	    boolean hasDigits = false;
+	    for (int i=0; i<len; i++) {
+	        if (!Character.isLetterOrDigit(password.charAt(i)))
+	            return false;
+	        hasDigits = hasDigits || Character.isDigit(password.charAt(i));
+	        hasLetters = hasLetters || Character.isLetter(password.charAt(i));
+	    }
+	    return hasDigits && hasLetters;
 	}
 
 	/**

@@ -42,27 +42,19 @@ set[Declaration] fileASTs() = createAstsFromFiles({|project://sqat-analysis/src/
 
 alias CC = rel[loc method, int cc];
 
-/* Returns 1 if the given string operator is a comparator */
-bool isBooleanOperator (str op) {
-	if ((op == "\>") || (op == "\>=") || (op == "==") || 
-		(op == "\<=") || (op == "\<") || (op == "!=") || 
-		(op == "||") || (op == "&&")) {
-		return true;
-	}
-	return false;
-}
-
-/* Computes the cyclomatic complexity of a method (parses expressions too). */
+/* Computes the cyclomatic complexity of a method. */
 int mcc (Statement s) {
 	int c = 1;
 	
 	visit (s) {
-		
-		/* Matching for: Expressions */
-		case e_infix : \infix(Expression lhs, str operator, Expression rhs) :
-			c = c + (isBooleanOperator(operator) ? 1 : 0);
+		/* Expressions */
+		case e_infix : \infix(Expression lhs, "||", Expression rhs) :
+			c = c + 1;
 			
-		/* Matching for: Control-Flow Statements */
+		case e_infix : \infix(Expression lhs, "&&", Expression rhs) :
+			c = c + 1;
+			
+		/* Statements */
 		case s_if : \if(Expression condition, Statement thenBranch) :
 			c = c + 1;
 			
@@ -85,6 +77,12 @@ int mcc (Statement s) {
 			c = c;
 			
 		case s_switch : \switch(Expression expression, list[Statement] statements) :
+			c = c;
+		
+		case s_case: \case(Expression expression) :
+			c = c + 1;
+			
+		case s_defaultCase: \defaultCase() :
 			c = c + 1;
 			
 		case s_try : \try(Statement body, list[Statement] catchClauses) :
