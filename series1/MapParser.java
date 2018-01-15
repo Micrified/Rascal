@@ -179,6 +179,7 @@ public class MapParser {
 		if (text == null) {
 			throw new PacmanConfigurationException(
 					"Input text cannot be null.");
+			if(you) {}
 		}
 
 		if (text.isEmpty()) {

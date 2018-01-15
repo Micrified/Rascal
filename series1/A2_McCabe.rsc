@@ -42,6 +42,11 @@ set[Declaration] fileASTs() = createAstsFromFiles({|project://sqat-analysis/src/
 
 alias CC = rel[loc method, int cc];
 
+int printReturn(str s, int c){
+	println(s);
+	return c;
+}
+
 /* Computes the cyclomatic complexity of a method. */
 int mcc (Statement s) {
 	int c = 1;
@@ -49,53 +54,53 @@ int mcc (Statement s) {
 	visit (s) {
 		/* Expressions */
 		case e_infix : \infix(Expression lhs, "||", Expression rhs) :
-			c = c + 1;
+			c = c + printReturn("infix expression ||", 1);
 			
 		case e_infix : \infix(Expression lhs, "&&", Expression rhs) :
-			c = c + 1;
+			c = c + printReturn("infix expression &&", 1);
 			
 		/* Statements */
 		case s_if : \if(Expression condition, Statement thenBranch) :
-			c = c + 1;
+			c = c + printReturn("If Statement", 1);
 			
 		case s_ifElse : \if(Expression condition, Statement thenBranch, Statement elseBranch) :
-			c = c + 1;
+			c = c + printReturn("If Else Statement", 1);
 			
 		case s_do : \do(Statement body, Expression condition) :
-			c = c + 1;
+			c = c + printReturn("Do", 1);
 			
 		case s_forEach : \foreach(Declaration parameter, Expression collection, Statement body) :
-			c = c + 1;
+			c = c + printReturn("For Each", 1);
 			
 		case s_forCond : \for(list[Expression] initializers, Expression condition, list[Expression] updaters, Statement body) :
-			c = c + 1;
+			c = c + printReturn("For Cond", 1);
 			
 		case s_for : \for(list[Expression] initializers, list[Expression] updaters, Statement body) :
-			c = c + 1;
+			c = c + printReturn("For", 1);
 			
 		case s_label : \label(str name, Statement body) :
-			c = c;
+			c = c + printReturn("Label", 0);
 			
 		case s_switch : \switch(Expression expression, list[Statement] statements) :
-			c = c;
+			c = c + printReturn("Switch", 0);
 		
 		case s_case: \case(Expression expression) :
-			c = c + 1;
+			c = c + printReturn("Case", 1);
 			
 		case s_defaultCase: \defaultCase() :
-			c = c + 1;
+			c = c + printReturn("Default Case", 1);
 			
 		case s_try : \try(Statement body, list[Statement] catchClauses) :
-			c = c + 1;
+			c = c + printReturn("Try", 1);
 			
 		case s_tryFinally : \try(Statement body, list[Statement] catchClauses, f : Statement \finally)  :
-			c = c + 1;
+			c = c + printReturn("Try Finally", 1);
 			
 		case s_catch : \catch(Declaration exception, Statement body) :
-			c = c + 1;
+			c = c + printReturn("Catch", 1);
 			
 		case s_while : \while(Expression condition, Statement body) :
-			c = c + 1;
+			c = c + printReturn("While", 1);
 	}
 	return c;
 }
