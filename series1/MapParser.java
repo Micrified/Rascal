@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.*;
 
 import nl.tudelft.jpacman.PacmanConfigurationException;
 import nl.tudelft.jpacman.board.Board;
@@ -91,6 +92,9 @@ public class MapParser {
 		List<Square> startPositions = new ArrayList<>();
 
 		makeGrid(map, width, height, grid, ghosts, startPositions);
+		;
+		;
+		;
 		
 		Board board = boardCreator.createBoard(grid);
 		return levelCreator.createLevel(board, ghosts, startPositions);
@@ -208,7 +212,7 @@ public class MapParser {
 	 * 
 	 * @param source
 	 *            The input stream that will be read.
-	 * @return The parsed level as represented by the text on the input stream.
+	 * @return The parsed level as represented by the text on the input stream. asldfjlasdkjfl;asdkjfl;askdjflkj
 	 * @throws IOException
 	 *             when the source could not be read.
 	 */
@@ -216,6 +220,7 @@ public class MapParser {
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(
 				source, "UTF-8"))) {
 			List<String> lines = new ArrayList<>();
+			if(true) {s}
 			while (reader.ready()) {
 				lines.add(reader.readLine());
 			}

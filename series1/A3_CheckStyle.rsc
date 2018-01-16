@@ -11,6 +11,7 @@ import ParseTree;
 import util::ResourceMarkers;
 import util::FileSystem;
 
+
 /*
 
 Assignment: detect style violations in Java source code.
@@ -49,46 +50,35 @@ Bonus:
 
 */
 
-/* Style Violation: LineLength */
+/* Style Violation: FileLength */
 
-// Maximum allowed line length.
-int maximumLineLength = 80;
+// Maximum allowed file length.
+int maximumFileLength = 200;
 
-// Maps lines to locations in a file.
-list[loc] getLines (loc file) {
-	list[loc] locations = [];
-	
-	// Convert file to string. Split into list on newline.
-	list[str] lines = split("\n", readFile(file));
-	
-	// Iterate over lines, and compute the appropriate location.
-	for (i <- index(lines)) {
-		loc l = file;
-		l.begin = <i+1,0>;
-		l.end = <i+1, size(lines[i])>;
-		locations = locations + l;
-	}
-	
-	return locations;
+// Returns the length of a file.
+int fileLength (loc f) {
+	return size(split("\n", readFile(f))) + 1;
 }
 
 // Checks a project for lines exceeding the maximum set line length.
-set[Message] checkLineLength (loc project) {
+set[Message] checkFileLength (loc project) {
 	set[Declaration] decls = createAstsFromEclipseProject(project, true); 
-	set[loc] matches = {};
+	set[tuple[loc l, int n]] matches = {};
 	
+	// Crawl project, setup message buffer.
 	fs = crawl(project);
 	set[Message] ms = {};
 	
 	// Extract all files.
 	list[loc] files = [l | /file(loc l) := fs, !startsWith(l.file, "."), l.extension == "java"];
 	
-	// For all files, create set of new tuples combining their location with
+	// For all files, filter all with line length exceeding our limit.
 	for (int i <- index(files)) {
-		matches = matches + { l | l <- getLines(files[i]), l.end.column > maximumLineLength};
+		matches = { <f, fileLength(f)> | f <- files, fileLength(f) > maximumFileLength };
 	}
 	
-	return ms;
+	// Generate messages.
+	return {warning("File of length: " + toString(f.n) + " exceeds limit " + toString(maximumFileLength) , f.l) | f <- matches};
 }
 
 /* Style Violation: NestedIfDepth */
@@ -126,11 +116,45 @@ set[Message] checkNestedIfStyle (loc project) {
   	return {warning("Nested if depth of: " + toString(m.d) + " exceeds limit " + toString(maximumIfDepth) , m.l) | m <- matches, m.d > maximumIfDepth};
 }
 
-/* Style Violation: MultipleStringLiterals */
+/* Style Violation: ReturnCount */
+
+// Maximum allowed return statement threshold
+int maximumReturnCount = 2;
+
+// Returns the number of "return" calls in a method body.
+int methodReturnCount (Statement s) {
+	int count = 0;
+	visit (s) {
+	    case r_expr: \return(Expression expression) :
+	    		count = count + 1;
+    		case r_empty: \return() :
+    			count = count + 1;
+	}
+	return count;
+}
+
+// Returns a set of messages where the return count exceeds a threshold.
+set[Message] checkMethodReturnCount (loc project) {
+	set[Declaration] decls = createAstsFromEclipseProject(project, true); 
+	set[tuple[loc l, int n]] matches = {};
+	
+	// Visit all methods, count return statements.
+	visit (decls) {
+		case m : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
+			matches = matches + {<m.src, methodReturnCount(impl)>};
+  	}
+
+	return {warning("Method return count: " + toString(m.n) + " exceeds limit " + toString(maximumReturnCount) , m.l) | m <- matches, m.n > maximumReturnCount};
+}
+
+
+
 
 set[Message] checkStyle(loc project) {
   set[Message] result = {};
   result = checkNestedIfStyle(project);
+  result = result + checkFileLength(project);
+  result = result + checkMethodReturnCount(project);
   
   // to be done
   // implement each check in a separate function called here. 

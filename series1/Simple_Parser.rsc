@@ -1,39 +1,33 @@
 module sqat::series1::Simple_Parser
 
-import IO;
-import ParseTree;
 import String;
-import util::FileSystem;
+import Parse;
+import List;
 
-/* Garbage 
-	lexical NewLineSeq 		= ^"\n" [\n]*;
+/* This is the first line with a commment */
+
+/* This is a function where tabs are used */
+int returnNumberOfRascalUsers (int x) {
+	if (x != 0) {
+		switch (x):
+			case 1: return 0;
+			
+			case 2: return 0;
+			
+			default: return 0;
+	}
+
+	;
+	;
+	;
+	;
 	
-	
-	lexical BlocStart		= "/*";
-	
-	lexical BlocEnd			= "*/";
-	
-	lexical LineComment		= ^"//" (![\n])* "\n";
+	// This is an inline comment.
+	return 0;
+}
+
+/* Here is a block comment.
+ * x
+ * y
+ * z
 */
-
-lexical Id = [a-zA-Z]+ [0-9]*;
-
-lexical Eq = "\>" | "\>=" | "==" | "\<" | "\<=" | "!=";
-
-lexical Num = [0-9]+;
-
-syntax Comparison = Id Eq Num ";" ;
-syntax Assignment = Id "=" Num ";" ;
-syntax Expression = Comparison | Assignment;
-syntax ExpressionList = Expression*;
-
- int countAssignments (str input) {
- 	int count = 0;
-
- 	pt = parse(#ExpressionList, input);
- 	visit (pt) {
- 		case Assignment c:
- 			count = count + 1;
- 	}
- 	return count; 
- }
