@@ -50,7 +50,12 @@ Bonus:
 
 */
 
-/* Style Violation: FileLength */
+
+/*
+ ******************************************************************************
+ *					Style Violation Checker: File Length
+ ******************************************************************************
+*/
 
 // Maximum allowed file length.
 int maximumFileLength = 200;
@@ -81,7 +86,17 @@ set[Message] checkFileLength (loc project) {
 	return {warning("File of length: " + toString(f.n) + " exceeds limit " + toString(maximumFileLength) , f.l) | f <- matches};
 }
 
-/* Style Violation: NestedIfDepth */
+/*
+ ******************************************************************************
+ *					Style Violation Tests: File Length
+ ******************************************************************************
+*/
+
+/*
+ ******************************************************************************
+ *					Style Violation Checker: Nested IF Depth
+ ******************************************************************************
+*/
 
 // Maximum allowed nested if-statement threshold
 int maximumIfDepth = 1;
@@ -90,6 +105,7 @@ int maximumIfDepth = 1;
 int nestedIfDepth (Statement s) {
 	int d = 0;
 	
+	// Visit all nested if-statements: Calculate depth.
 	visit (s) {
 		case s_if : \if(Expression condition, Statement thenBranch) :
 			d = nestedIfDepth(thenBranch) + 1;
@@ -98,14 +114,15 @@ int nestedIfDepth (Statement s) {
 			d = 1 + (nestedIfDepth(thenBranch) > nestedIfDepth(elseBranch) ? nestedIfDepth(thenBranch) : nestedIfDepth(elseBranch));
 	}
 	
+	// Return depth
 	return d;
 }
  
 // Parses a project and filters all nested if-statements with depth larger than maximumIfDepth
-set[Message] checkNestedIfStyle (loc project) {
-	set[Declaration] decls = createAstsFromEclipseProject(project, true); 
+set[Message] checkNestedIfStyle (set[Declaration] decls) {
 	set[tuple[loc l, int d]] matches = {};
 	
+	// Visit all if-statements: Calculate depth.
 	visit (decls) {
 		case s_if : \if(Expression condition, Statement thenBranch) :
 			matches = matches + <s_if.src, nestedIfDepth(s_if)>;
@@ -113,10 +130,21 @@ set[Message] checkNestedIfStyle (loc project) {
   	 		matches = matches + <s_ifElse.src, nestedIfDepth(s_ifElse)>;
   	}
   	
+  	// Filter matches and generate messages.
   	return {warning("Nested if depth of: " + toString(m.d) + " exceeds limit " + toString(maximumIfDepth) , m.l) | m <- matches, m.d > maximumIfDepth};
 }
 
-/* Style Violation: ReturnCount */
+/*
+ ******************************************************************************
+ *					Style Violation Tests: Nested IF Depth
+ ******************************************************************************
+*/
+
+/*
+ ******************************************************************************
+ *					Style Violation Checker: Return-Statement Count
+ ******************************************************************************
+*/
 
 // Maximum allowed return statement threshold
 int maximumReturnCount = 2;
@@ -134,30 +162,71 @@ int methodReturnCount (Statement s) {
 }
 
 // Returns a set of messages where the return count exceeds a threshold.
-set[Message] checkMethodReturnCount (loc project) {
-	set[Declaration] decls = createAstsFromEclipseProject(project, true); 
+set[Message] checkMethodReturnCount (set[Declaration] decls) {
 	set[tuple[loc l, int n]] matches = {};
 	
-	// Visit all methods, count return statements.
+	// Visit all methods: Count return statements.
 	visit (decls) {
 		case m : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
 			matches = matches + {<m.src, methodReturnCount(impl)>};
   	}
 
+	// Filter matches and generate messages.
 	return {warning("Method return count: " + toString(m.n) + " exceeds limit " + toString(maximumReturnCount) , m.l) | m <- matches, m.n > maximumReturnCount};
 }
 
+/*
+ ******************************************************************************
+ *					Style Violation Tests: Return-Statement Count
+ ******************************************************************************
+*/
 
 
+/*
+ ******************************************************************************
+ *			Custom Style Violation Checker: Excessive Method Parameters
+ ******************************************************************************
+*/
+
+// Maximum allowed parameter count threshold.
+int maxMethodParameters = 5;
+
+/* Custom check style: Excessive method parameters*/
+set[Message] checkExcessiveMethodParameters (set[Declaration] decls) {
+	set[tuple[loc l, int n]] matches = {};
+	
+	// Visit all methods: Count parameters. 
+	visit (decls) {
+		case m : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
+			matches = matches + {<m.src, size(parameters)>};
+	}
+	
+	// Filter matches and generate messages.
+	return {warning("Method parameters: " + toString(m.n) + " exceeds limit " + toString(maxMethodParameters) , m.l) | m <- matches, m.n > maxMethodParameters};
+}
+
+/*
+ ******************************************************************************
+ *				Style Violation Tests: Excessive Method Parameters
+ ******************************************************************************
+*/
+
+
+/*
+ ******************************************************************************
+ *								Style Checker
+ ******************************************************************************
+*/
 
 set[Message] checkStyle(loc project) {
   set[Message] result = {};
-  result = checkNestedIfStyle(project);
-  result = result + checkFileLength(project);
-  result = result + checkMethodReturnCount(project);
+  set[Declaration] decls = createAstsFromEclipseProject(project, true); 
   
-  // to be done
-  // implement each check in a separate function called here. 
+  result = checkNestedIfStyle(decls);
+  result = result + checkFileLength(project);
+  result = result + checkMethodReturnCount(decls);
+  result = result + checkExcessiveMethodParameters(decls);
+
   addMessageMarkers(result);
   return result;
 }
