@@ -1,7 +1,13 @@
 module sqat::series2::A1a_StatCov
 
 import lang::java::jdt::m3::Core;
-
+import lang::java::jdt::m3::AST;
+import IO;
+import List;
+import ParseTree;
+import Node;
+import util::FileSystem;
+import String;
 /*
 
 Implement static code coverage metrics by Alves & Visser 
@@ -41,9 +47,44 @@ Questions:
 - how do your results compare to the jpacman results in the paper? Has jpacman improved?
 - use a third-party coverage tool (e.g. Clover) to compare your results to (explain differences)
 
-
 */
 
+alias Relation = rel[loc from, str cType, loc to];
 
 M3 jpacmanM3() = createM3FromEclipseProject(|project://jpacman-framework|);
+
+Relation getFileToMethodRelations (loc f) {
+	Relation rs = {};
+ 	if (startsWith(f.file, ".") || f.extension != "java") {
+ 		return rs;
+ 	}
+ 	
+ 	Declaration fileAST = createAstFromFile(f, true);
+ 	
+ 	visit (fileAST) {
+ 		case m1 : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
+ 			rs = rs + <f, "dm", m1.src>;
+ 		case m2 : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions) :
+ 			rs = rs + <f, "dm", m2.src>;
+ 	}
+ 	return rs;
+}
+
+Relation makeProjectGraph (loc project) {
+	Relation rs = {};
+	fs = crawl(project);
+	
+	visit (fs) {
+			
+		case d : \directory(loc p, set[FileSystem] kids) :
+			rs = rs + {<p, "dt", q> | \file(loc q) <- kids, !startsWith(q.file, "."), q.extension == "java"} + 
+				{<p, "dt", r> | \directory(loc r, _) <- kids};
+				
+		case f : \file(loc l) :
+			rs = rs + getFileToMethodRelations(l);
+	}
+	
+	return rs;
+}
+
 
