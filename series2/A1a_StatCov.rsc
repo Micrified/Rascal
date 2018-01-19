@@ -76,9 +76,10 @@ Relation graphTestCoverage (M3 project) {
 	// Filter all test-methods from our project: Assumes all test-methods are annotated.
 	Relation testMethods = { <method, "C", target> | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit"), <method, "C", target> <- graph };
 	
-	Relation coverage = solve (testMethods) {
-							testMethods = testMethods + transitiveClosure(testMethods, graph);
-						}
+	Relation coverage = solve (testMethods) { 
+		testMethods = testMethods + transitiveClosure(testMethods, graph); 
+	}
+						
 	return coverage;
 }
 
@@ -96,42 +97,3 @@ Relation graphProject (M3 project) {
 	// Return all relations
 	return ptc + ctm + mtm;
 }
-
-
-// Old stuff
-
-Relation getFileToMethodRelations (loc f) {
-	Relation rs = {};
- 	if (startsWith(f.file, ".") || f.extension != "java") {
- 		return rs;
- 	}
- 	
- 	Declaration fileAST = createAstFromFile(f, true);
- 	
- 	visit (fileAST) {
- 		case m1 : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
- 			rs = rs + <f, "dm", m1.src>;
- 		case m2 : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions) :
- 			rs = rs + <f, "dm", m2.src>;
- 	}
- 	return rs;
-}
-
-Relation makeProjectGraph (loc project) {
-	Relation rs = {};
-	fs = crawl(project);
-	
-	visit (fs) {
-			
-		case d : \directory(loc p, set[FileSystem] kids) :
-			rs = rs + {<p, "dt", q> | \file(loc q) <- kids, !startsWith(q.file, "."), q.extension == "java"} + 
-				{<p, "dt", r> | \directory(loc r, _) <- kids};
-				
-		case f : \file(loc l) :
-			rs = rs + getFileToMethodRelations(l);
-	}
-	
-	return rs;
-}
-
-
