@@ -53,6 +53,39 @@ alias Relation = rel[loc from, str cType, loc to];
 
 M3 jpacmanM3() = createM3FromEclipseProject(|project://jpacman-framework|);
 
+// New stuff
+
+// Returns true if given loc is in a set of relations.
+bool inRelations (loc l, Relation rs) {
+	int count = ( 0 | it + 1 | /<_,_,l> <- rs);
+	return count > 0;
+}
+
+Relation transitiveClosure (loc method , Relation graph) {
+	return {};
+} 
+
+Relation graphProject (M3 project) {
+
+	// Collect all class-to-method relations.
+	Relation ctm = { <class, "DM", method> | class <- classes(project), method <- methods(project, class) };
+	
+	// Collect all method-to-method invocations.
+	Relation mtm = { <source, "C", target> | <source, target> <- project.methodInvocation, inRelations(target, ctm) };
+	
+	// Filter all test-methods from our method-to-method invocations.
+	set[loc] tst = { method | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit") };
+	
+	// Obtain transitive closure of test-methods over all methods.
+	Relation clo = ({} | it + r | r <- [ transitiveClosure(method, mtm) | method <- tst ]);
+	
+	// Return all relations
+	return ctm + mtm;
+}
+
+
+// Old stuff
+
 Relation getFileToMethodRelations (loc f) {
 	Relation rs = {};
  	if (startsWith(f.file, ".") || f.extension != "java") {
