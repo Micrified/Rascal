@@ -107,7 +107,8 @@ list[Coverage] computeClassCoverage (M3 project) {
 	Relation testCoverage = testMethodCoverage(project);
 	
 	set[loc] ts = {method | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit")};
-	
+	printExp("number of test methods: ", size(ts));
+	println("");
 	// Extract all Test Methods in Relations.
 	set[loc] tms = { m | <m,_,_> <- testMethodCoverage(project) } + 
 				   { m | <_,_,m> <- testMethodCoverage(project) };
@@ -142,6 +143,9 @@ Coverage computeStaticCoverage (loc projectPath) {
 	// Collect all class-to-method relations.
 	Relation ctm = { <cls, "DM", mth> | cls <- classes(project), mth <- methods(project, cls) };
 	
+	printExp("number of classes methods: ", size(ctm));
+	println("");
+	
 	// Collect all method-to-method relations.
 	Relation mtm = { <src, "C", tgt> | <src, tgt> <- project.methodInvocation, inRelations(tgt, ctm) };
 	
@@ -166,8 +170,8 @@ Coverage computeStaticCoverage (loc projectPath) {
 	// Compute the package coverage.
 	list[Coverage] pkgCoverage = [computePackageCoverage(pkg, classCoverage) | pkg <- packages(project) ];
 	
-	// Compute the project coverage.
-	Coverage projectCoverage = <projectPath, (0 | it + dm | <_,dm,_> <- pkgCoverage), (0 | it + cm | <_,_,cm> <- pkgCoverage)>;
+	// Compute the project coverage. (Use classCoverage because package overlaps).
+	Coverage projectCoverage = <projectPath, (0 | it + dm | <_,dm,_> <- classCoverage), (0 | it + cm | <_,_,cm> <- classCoverage)>;
 
 	return projectCoverage;
 }
