@@ -8,6 +8,7 @@ import ParseTree;
 import Node;
 import util::FileSystem;
 import String;
+import Set;
 
 /*
 
@@ -52,6 +53,8 @@ Questions:
 
 alias Relation = rel[loc from, str cType, loc to];
 
+alias Coverage = tuple[loc l, int dm, int cm];
+
 M3 jpacmanM3() = createM3FromEclipseProject(|project://jpacman-framework|);
 
 // New stuff
@@ -68,19 +71,19 @@ Relation transitiveClosure (Relation testMethods , Relation graph) {
 	return { <b, "C", c> | <_, "C", b> <- testMethods, <b,"C",c> <- graph };
 }
 
-Relation graphTestCoverage (M3 project) {
+Relation testMethodCoverage (M3 project) {
 
 	// Obtain project graph.
 	Relation graph = graphProject(project);
 
 	// Filter all test-methods from our project: Assumes all test-methods are annotated.
 	Relation testMethods = { <method, "C", target> | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit"), <method, "C", target> <- graph };
-	
-	Relation coverage = solve (testMethods) { 
+
+	solve (testMethods) { 
 		testMethods = testMethods + transitiveClosure(testMethods, graph); 
 	}
-						
-	return coverage;
+				
+	return testMethods;
 }
 
 Relation graphProject (M3 project) {
@@ -97,3 +100,78 @@ Relation graphProject (M3 project) {
 	// Return all relations
 	return ptc + ctm + mtm;
 }
+
+list[Coverage] computeClassCoverage (M3 project) {
+
+	// Obtain Test Method Coverage (Relations).
+	Relation testCoverage = testMethodCoverage(project);
+	
+	set[loc] ts = {method | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit")};
+	
+	// Extract all Test Methods in Relations.
+	set[loc] tms = { m | <m,_,_> <- testMethodCoverage(project) } + 
+				   { m | <_,_,m> <- testMethodCoverage(project) };
+	
+	// Compute class coverage.
+	return [<c, size(methods(project, c) - ts), size(methods(project, c) - tms)> | c <- classes(project)];
+} 
+
+// Class Coverage: <Class Location, N.Defined Methods, N.Covered Methods>
+Coverage computeClassCoverage (loc cls,  set[loc] defined, set[loc] tested) {
+	return <cls, size(defined), size(tested & defined)>; 
+}
+
+// Package Coverage: <Package Location, N.Defined Methods, N.Covered Methods>
+Coverage computePackageCoverage (loc pkg, list[Coverage] clsCoverage) {
+	list[Coverage] pkgCoverage = [<cls, dm, cm> | <cls, dm, cm> <- clsCoverage, contains(cls.path, pkg.path) ]; 
+	int defined = (0 | it + n | <cls, n, _> <- pkgCoverage);
+	int covered = (0 | it + n | <cls, _, n> <- pkgCoverage);
+	return <pkg, defined, covered>;
+}
+
+Coverage computeStaticCoverage (loc projectPath) {
+
+	// Create M3 project.
+	M3 project = createM3FromEclipseProject(projectPath);
+
+	// ********************* Compute Project Graph ************************** 
+
+	// Collect all package-to-class relations.
+	Relation ptc = { <pkg, "DT", cls> | pkg <- packages(project), cls <- classes(project), contains(cls.path, pkg.path) };
+
+	// Collect all class-to-method relations.
+	Relation ctm = { <cls, "DM", mth> | cls <- classes(project), mth <- methods(project, cls) };
+	
+	// Collect all method-to-method relations.
+	Relation mtm = { <src, "C", tgt> | <src, tgt> <- project.methodInvocation, inRelations(tgt, ctm) };
+	
+	// ********************* Compute Test Coverage ************************** 
+	
+	// Filter all test-methods from our project: Assumes all test-methods are annotated.
+	Relation trs = { <method, "C", target> | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit"), <method, "C", target> <- mtm };
+
+	// Compute transitive closure over test-methods and method-to-method relations.
+	solve (trs) { 
+		trs = trs + transitiveClosure(trs, mtm); 
+	}
+	
+	// Extract all covered test methods from transitive relations.
+	set[loc] covered = {t | <t,_,_> <- trs} + {t | <_,_,t> <- trs};
+	
+	// ********************* Compute Test Coverage **************************
+	
+	// Compute the class coverage.
+	list[Coverage] classCoverage = [computeClassCoverage(cls, methods(project, cls), covered) | cls <- classes(project) ];
+	
+	// Compute the package coverage.
+	list[Coverage] pkgCoverage = [computePackageCoverage(pkg, classCoverage) | pkg <- packages(project) ];
+	
+	// Compute the project coverage.
+	Coverage projectCoverage = <projectPath, (0 | it + dm | <_,dm,_> <- pkgCoverage), (0 | it + cm | <_,_,cm> <- pkgCoverage)>;
+
+	return projectCoverage;
+}
+
+
+
+
