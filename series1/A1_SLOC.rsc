@@ -5,6 +5,7 @@ import ParseTree;
 import Boolean;
 import String;
 import util::FileSystem;
+import Map;
 
 /* 
 
@@ -36,6 +37,27 @@ Bonus:
 */
 
 alias SLOC = map[loc file, int sloc];
+
+str removeComments (str source) {
+
+	// 1) Filter out string literals.
+	set[str] stringLiterals = { match | /<match: \"([^\"])*\" >/ := source };
+	source = (source | replaceAll(it, comment, "\"\"") | comment <- stringLiterals);
+	
+	// 1) Filter out block comments.
+	set[str] blockComments = { match | /<match: \/\*(\*[^\/]|[^\*])*\*\/>/ := source };
+	source = (source | replaceAll(it, comment, "") | comment <- blockComments);
+	
+	// 2) Filter out line comments.
+	set[str] lineComments = { match | /<match: \/\/(.)*>/ := source };
+	source = (source | replaceAll(it, comment, "") | comment <- lineComments);
+	
+	// 3) Filter out consecutive newlines.
+	 set[str] newlineSequences = { match | /<match:\n(\s)*>/ := source };
+	 source = (source | replaceAll(it, sequence, "\n") | sequence <- newlineSequences);
+	 
+	return source;
+}
 
 /* Filters out all character sequences detected to be comments */
 str filterComments (str s) {
@@ -105,7 +127,8 @@ str filterConsecutiveNewlines (str s) {
 /* Returns number of source codes for file */
 int sourceLines (loc file) {
 	str fileStr = readFile(file);
-	str result = filterConsecutiveNewlines(filterComments(fileStr));
+	//str result = filterConsecutiveNewlines(filterComments(fileStr));
+	str result = removeComments(fileStr);
 	return size(split("\n", result));
 }
 
@@ -113,10 +136,23 @@ int sourceLines (loc file) {
 SLOC sloc (loc project) {
 	fs = crawl(project);
 	SLOC result = (l : sourceLines(l) | /file(loc l) := fs, !startsWith(l.file, "."), l.extension == "java");
-	int totalLines = ( 0 | it + result[k] | k <- result );
-	printExp("Total SLOC = ", totalLines); print("\n");
 	return result;
 }
 
+/* Main Program */
+void main () {
+	SLOC slocMap = sloc(|project://jpacman-framework|);
+
+	// What is the biggest file in JPacman?
+	loc f = (getOneFrom(slocMap) | slocMap[it] > slocMap[s] ? it : s | s <- slocMap);
+	println("Largest File: < f.path >. Featuring: < slocMap[f] > source lines of code.");
+
+	// What is the total size of JPacman?
+	int t = (0 | it + slocMap[s] | s <- slocMap);
+	println("Total Size: < t > source lines of code, over < size(slocMap) > files.");
+
+	// Is JPacman large according to SIG maintainability?
+	
+}
    
              
