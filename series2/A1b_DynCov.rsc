@@ -1,8 +1,14 @@
 module sqat::series2::A1b_DynCov
 
-import Java17ish;
+import lang::java::jdt::m3::Core;
+import lang::java::jdt::m3::AST;
+import IO;
+import List;
 import ParseTree;
 import util::FileSystem;
+import String;
+import Set;
+import Java17ish;
 
 /*
 
@@ -42,6 +48,54 @@ Tips:
    [NT]"...", where NT represents the desired non-terminal (e.g. Expr, IntLiteral etc.).  
 
 */
+
+/* Returns methods that are not constructors */
+set[loc] nonConstructorMethods (rel[loc, loc] methods) {
+	return {m | <_,m> <- methods, !isConstructor(m) };
+}
+
+
+loc afterBrace (loc l) {
+	println("Original location: <l>");
+	l.offset = l.offset + 1;
+	l.length = 0;
+	println("New location: <l>");
+	return l;
+}
+
+void instrumentClass (loc file) {
+	
+	// 1. Create the AST.
+	Declaration ast = createAstFromFile(file, true);
+	list[tuple[loc l, str methodName]] items = [];
+	
+	// 2. Instrument all methods.
+	visit (ast) {
+		case m: \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
+			items = items + <afterBrace(impl.src), name>;
+	}
+	
+	// 3. Sort list.
+	items = sort(items, bool(<loc a, str _>, <loc b, str _>) { return a.offset > b.offset; });
+	
+	for (<location, methodName> <- items) {
+		appendToFile(location, "DynamicLogger.getInstance.hit(", file.file, ",", methodName, ");");
+	}
+}
+
+set[loc] instrumentProject (loc projectPath) {
+
+	// 1) Create project.
+	M3 project = createM3FromEclipseProject(projectPath);
+	
+	// 2. Extract all methods: Excluding Constructors.
+	set[loc] allMethods = nonConstructorMethods(declaredMethods(project));
+	
+	set[Declaration] decls = createAstsFromEclipseProject(project, true); 
+	
+	//3. 
+	return allMethods;
+}
 
 
 void methodCoverage(loc project) {

@@ -5,7 +5,6 @@ import lang::java::jdt::m3::AST;
 import IO;
 import List;
 import ParseTree;
-import Node;
 import util::FileSystem;
 import String;
 import Set;
