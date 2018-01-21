@@ -56,30 +56,61 @@ set[loc] nonConstructorMethods (rel[loc, loc] methods) {
 
 
 loc afterBrace (loc l) {
-	println("Original location: <l>");
 	l.offset = l.offset + 1;
 	l.length = 0;
-	println("New location: <l>");
 	return l;
+}
+
+/* Returns a tuple of statements to instrument: (insert, method, statement). */
+list[tuple[loc i, loc m, loc s]] instrumentClassMethod (loc methodLocation, Statement methodBody) {
+	list[tuple[loc c, loc m, loc s]] logs = [];
+	
+	visit (methodBody) {
+		case s_ifElse : \if(Expression condition, Statement thenBranch, Statement elseBranch) :
+			logs = logs + [<afterBrace(thenBranch.src), methodLocation, thenBranch.src>,
+						   <afterBrace(afterBrace(elseBranch.src)), methodLocation, elseBranch.src>];
+		case s_case : \case(Expression expression) :
+			logs = logs + <s_case.src, methodLocation, s_case.src>;
+	}
+	
+	return logs;
+}
+
+void instrumentationTest (loc file) {
+	
+		Declaration ast = createAstsFromFile(file,true);
+		
+		visit (ast) {
+			case m: \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, b: \block(list[Statement] statements)) :
+				print("hi");
+			case m: \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl)) :
+				print("Not doing anything for this!");
+		}
+
 }
 
 void instrumentClass (loc file) {
 	
 	// 1. Create the AST.
 	Declaration ast = createAstFromFile(file, true);
-	list[tuple[loc l, str methodName]] items = [];
+	list[tuple[loc i, loc m, loc s]] items = [];
+	loc empty = |cwd:///|;
 	
 	// 2. Instrument all methods.
 	visit (ast) {
 		case m: \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
-			items = items + <afterBrace(impl.src), name>;
+			items = items + <afterBrace(impl.src), m.src, empty> + instrumentClassMethod(m.src, impl); 	
 	}
 	
 	// 3. Sort list.
-	items = sort(items, bool(<loc a, str _>, <loc b, str _>) { return a.offset > b.offset; });
+	items = sort(items, bool(<loc a, loc _, loc _>, <loc b, loc _, loc _>) { return a.offset > b.offset; });
 	
-	for (<location, methodName> <- items) {
-		appendToFile(location, "DynamicLogger.getInstance.hit(", file.file, ",", methodName, ");");
+	for (<location, method, statement> <- items) {
+		if (statement == empty) {
+			appendToFile(location, "DynamicLogger.getInstance().hit(\"", file, "\",\"", method, "\");");
+		} else {
+			appendToFile(location, "DynamicLogger.getInstance().hit(\"", file, "\",\"", method, "\",\"", location,"\");");
+		}	
 	}
 }
 
