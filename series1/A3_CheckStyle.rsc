@@ -10,7 +10,7 @@ import List;
 import ParseTree;
 import util::ResourceMarkers;
 import util::FileSystem;
-
+import Set;
 
 /*
 
@@ -58,7 +58,7 @@ Bonus:
 */
 
 // Maximum allowed file length.
-int maximumFileLength = 200;
+int maximumFileLength = 100;
 
 // Returns the length of a file.
 int fileLength (loc f) {
@@ -88,12 +88,6 @@ set[Message] checkFileLength (loc project) {
 
 /*
  ******************************************************************************
- *					Style Violation Tests: File Length
- ******************************************************************************
-*/
-
-/*
- ******************************************************************************
  *					Style Violation Checker: Nested IF Depth
  ******************************************************************************
 */
@@ -107,11 +101,15 @@ int nestedIfDepth (Statement s) {
 	
 	// Visit all nested if-statements: Calculate depth.
 	visit (s) {
-		case s_if : \if(Expression condition, Statement thenBranch) :
+		case s_if : \if(_, Statement thenBranch) :
 			d = nestedIfDepth(thenBranch) + 1;
 			
-		case s_ifElse : \if(Expression condition, Statement thenBranch, Statement elseBranch) :
-			d = 1 + (nestedIfDepth(thenBranch) > nestedIfDepth(elseBranch) ? nestedIfDepth(thenBranch) : nestedIfDepth(elseBranch));
+		case s_ifElse : \if(_, Statement thenBranch, Statement elseBranch) :
+			{
+				int ifDepth = nestedIfDepth(thenBranch); 
+				int elseDepth = nestedIfDepth(elseBranch);
+				d = d + max(ifDepth, elseDepth);
+			}
 	}
 	
 	// Return depth
@@ -124,21 +122,15 @@ set[Message] checkNestedIfStyle (set[Declaration] decls) {
 	
 	// Visit all if-statements: Calculate depth.
 	visit (decls) {
-		case s_if : \if(Expression condition, Statement thenBranch) :
+		case s_if : \if(_, _) :
 			matches = matches + <s_if.src, nestedIfDepth(s_if)>;
-  	 	case s_ifElse : \if(Expression condition, Statement thenBranch, Statement elseBranch) :
+  	 	case s_ifElse : \if(_, _, _) :
   	 		matches = matches + <s_ifElse.src, nestedIfDepth(s_ifElse)>;
   	}
   	
   	// Filter matches and generate messages.
   	return {warning("Nested if depth of: " + toString(m.d) + " exceeds limit " + toString(maximumIfDepth) , m.l) | m <- matches, m.d > maximumIfDepth};
 }
-
-/*
- ******************************************************************************
- *					Style Violation Tests: Nested IF Depth
- ******************************************************************************
-*/
 
 /*
  ******************************************************************************
@@ -153,7 +145,7 @@ int maximumReturnCount = 2;
 int methodReturnCount (Statement s) {
 	int count = 0;
 	visit (s) {
-	    case r_expr: \return(Expression expression) :
+	    case r_expr: \return(_) :
 	    		count = count + 1;
     		case r_empty: \return() :
     			count = count + 1;
@@ -167,20 +159,13 @@ set[Message] checkMethodReturnCount (set[Declaration] decls) {
 	
 	// Visit all methods: Count return statements.
 	visit (decls) {
-		case m : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
+		case m : \method(_, _, _, _, Statement impl) :
 			matches = matches + {<m.src, methodReturnCount(impl)>};
   	}
 
 	// Filter matches and generate messages.
 	return {warning("Method return count: " + toString(m.n) + " exceeds limit " + toString(maximumReturnCount) , m.l) | m <- matches, m.n > maximumReturnCount};
 }
-
-/*
- ******************************************************************************
- *					Style Violation Tests: Return-Statement Count
- ******************************************************************************
-*/
-
 
 /*
  ******************************************************************************
@@ -195,22 +180,17 @@ int maxMethodParameters = 5;
 set[Message] checkExcessiveMethodParameters (set[Declaration] decls) {
 	set[tuple[loc l, int n]] matches = {};
 	
-	// Visit all methods: Count parameters. 
+	// Visit all methods + constructors: Count parameters. 
 	visit (decls) {
-		case m : \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
+		case m : \method(_, _, list[Declaration] parameters, _, _) :
 			matches = matches + {<m.src, size(parameters)>};
+		case c : \constructor(_, list[Declaration] parameters, _, _) :
+			matches = matches + {<c.src, size(parameters)>};
 	}
 	
 	// Filter matches and generate messages.
-	return {warning("Method parameters: " + toString(m.n) + " exceeds limit " + toString(maxMethodParameters) , m.l) | m <- matches, m.n > maxMethodParameters};
+	return {warning("Routine parameters: " + toString(m.n) + " exceeds limit " + toString(maxMethodParameters) , m.l) | m <- matches, m.n > maxMethodParameters};
 }
-
-/*
- ******************************************************************************
- *				Style Violation Tests: Excessive Method Parameters
- ******************************************************************************
-*/
-
 
 /*
  ******************************************************************************
@@ -222,11 +202,20 @@ set[Message] checkStyle(loc project) {
   set[Message] result = {};
   set[Declaration] decls = createAstsFromEclipseProject(project, true); 
   
+  
   result = checkNestedIfStyle(decls);
   result = result + checkFileLength(project);
   result = result + checkMethodReturnCount(decls);
   result = result + checkExcessiveMethodParameters(decls);
-
+  
   addMessageMarkers(result);
   return result;
+}
+
+set[Message] a3() {
+	loc projectLocation = |project://jpacman-framework|;
+	println("*************************** A3_CHECKSTYLE: RESULTS *******************************"); 
+	set[Message] result = checkStyle(projectLocation);
+	println("Done. Computed a total of <size(result)> style violations!");
+	return result;
 }

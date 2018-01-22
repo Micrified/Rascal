@@ -121,6 +121,8 @@ CC cc(set[Declaration] decls) {
   visit (decls) {
   	case m : \method(_, _, _, _, Statement impl) :
   		result = result + {<m.src, mcc(impl)>};
+  	case c : \constructor(_, _, _, Statement impl) :
+  		result = result + {<c.src, mcc(impl)>};
   }
   
   return result;
