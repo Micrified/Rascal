@@ -7,6 +7,7 @@ import String;
 import util::FileSystem;
 import Map;
 import util::Math;
+import Set;
 
 /* 
 
@@ -39,28 +40,33 @@ Bonus:
 
 alias SLOC = map[loc file, int sloc];
 
+/* Test for comment removal */
+loc commentTestFile = |project://sqat-analysis/src/sqat/series1/A1_SLOC_CommentTestFile.java|; 
+test bool commentTest() = 
+	sourceLines(commentTestFile) == 1;
+
+/* Test for whitespace removal */
+loc whitespaceTestFile = |project://sqat-analysis/src/sqat/series1/A1_SLOC_WhitespaceTestFile.java|;
+test bool whitespaceTest() = 
+	sourceLines(whitespaceTestFile) == 9;
+	
 /* Given a file as a string, the purify function removes the following
  * using Regular Expressions.
- * 1. String literals. Replaced by empty string.
- * 2. Block comments: Replaced by empty string.
- * 3. Line comments: Replaced by empty string.
- * 4. Newline + whitespace: Replaced by a single newline.
+ * 1. Block comments: Replaced by empty string.
+ * 2. Line comments: Replaced by empty string.
+ * 3. Newline + whitespace: Replaced by a single newline.
 */
 str purify (str source) {
 
-	// 1) Filter out string literals.
-	set[str] stringLiterals = { match | /<match: \"([^\"])*\" >/ := source };
-	source = (source | replaceAll(it, comment, "\"\"") | comment <- stringLiterals);
-	
-	// 2) Filter out block comments.
+	// 1) Filter out block comments.
 	set[str] blockComments = { match | /<match: \/\*(\*[^\/]|[^\*])*\*\/>/ := source };
 	source = (source | replaceAll(it, comment, "") | comment <- blockComments);
 	
-	// 3) Filter out line comments.
+	// 2) Filter out line comments.
 	set[str] lineComments = { match | /<match: \/\/(.)*>/ := source };
 	source = (source | replaceAll(it, comment, "") | comment <- lineComments);
 
-	// 4) Filter out consecutive whitespace.
+	// 3) Filter out consecutive whitespace.
 	set[str] whitespaceSequences = { match | /<match:[\t\ ]+>/ := source };
 	source = (source | replaceAll(it, sequence, "") | sequence <- whitespaceSequences);
 	 
@@ -86,16 +92,19 @@ void main () {
 	SLOC slocMap = sloc(|project://jpacman-framework|);
 
 	// What is the biggest file in JPacman?
-	println("************************** A1_SLOC: RESULTS ******************************");
+	println("***************************** A1_SLOC: RESULTS *********************************");
+	println("FACTS:");
 	loc f = (getOneFrom(slocMap) | slocMap[it] > slocMap[s] ? it : s | s <- slocMap);
-	println("Largest File: < f.path >. Featuring: < slocMap[f] > source lines of code.");
+	println("\tLargest File: < f.path >");
+	println("\tLargest File LOC: < slocMap[f] >");
 
 	// What is the total size of JPacman?
 	int t = (0 | it + slocMap[s] | s <- slocMap);
-	println("Total Size: < t > source lines of code, over < size(slocMap) > files.");
+	println("\tTotal Size: < t > source lines of code, over < size(slocMap) > files.");
 
+	println("\nQUESTIONS:");
 	// Is JPacman large according to SIG maintainability?
-	println("SIG Maintainability model assigns JPmacan a \"++\" rating as it is a Java project with 0-66k LOC, meaning the project is extremely small.");
+	println("\tSIG Maintainability model assigns JPmacan a \"++\" rating as it\n\t is a Java project with 0-66k LOC, meaning the project is extremely small.");
 	
 	// What is the ratio between actual code and test code size?
 	SLOC actualLOC = sloc(|project://jpacman-framework/src/main|);
@@ -103,7 +112,14 @@ void main () {
 	int actualLOCSize = (0 | it + actualLOC[s] | s <- actualLOC);
 	int testLOCSize = (0 | it + testLOC[s] | s <- testLOC);
 	real ratio = toReal(actualLOCSize) / toReal(testLOCSize);
-	println("There are <actualLOCSize> actual lines of code vs <testLOCSize> test lines of code. Giving ratio: <ratio>");
+	println("\tThere are <actualLOCSize> actual lines of code vs <testLOCSize> test lines of code. Giving ratio: <ratio>");
+	
+	println("\nTESTS:");
+	
+	// Print test results.
+	println("\tComment Removal Test:\t\t <commentTest() ? "PASSED" : "FAILED" >");
+	println("\tWhitespace Removal Test:\t <whitespaceTest() ? "PASSED" : "FAILED" >");
 }
+
    
              

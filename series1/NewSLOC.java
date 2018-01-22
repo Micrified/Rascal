@@ -1,54 +1,109 @@
-package nl.tudelft.jpacman.game;
-import java.util.List;
-import nl.tudelft.jpacman.board.Direction;
-import nl.tudelft.jpacman.level.Level;
-import nl.tudelft.jpacman.level.Level.LevelObserver;
-import nl.tudelft.jpacman.level.Player;
+packagenl.tudelft.jpacman.npc.ghost;
 
-public abstract class Game implements LevelObserver {
-private boolean inProgress;
-private final Object progressLock = new Object();
-protected Game() {
-inProgress = false;
+importstaticorg.junit.Assert.assertArrayEquals;
+importstaticorg.junit.Assert.assertEquals;
+importstaticorg.junit.Assert.assertNotNull;
+importstaticorg.junit.Assert.assertNull;
+importstaticorg.mockito.Mockito.mock;
+
+importjava.io.IOException;
+importjava.io.InputStream;
+importjava.util.List;
+
+importnl.tudelft.jpacman.board.Board;
+importnl.tudelft.jpacman.board.BoardFactory;
+importnl.tudelft.jpacman.board.Direction;
+importnl.tudelft.jpacman.board.Square;
+importnl.tudelft.jpacman.board.Unit;
+importnl.tudelft.jpacman.level.LevelFactory;
+importnl.tudelft.jpacman.level.MapParser;
+importnl.tudelft.jpacman.level.Pellet;
+importnl.tudelft.jpacman.sprite.PacManSprites;
+
+importorg.junit.Before;
+importorg.junit.Test;
+
+importcom.google.common.collect.Lists;
+
+
+@SuppressWarnings({"magicnumber","PMD.AvoidDuplicateLiterals","PMD.TooManyStaticImports""")).getBoard();
+Squares1=b.squareAt(0,0);
+Squares2=b.squareAt(0,0);
+List<Direction>path=Navigation
+.shortestPath(s1,s2,mock(Unit.class));
+assertEquals(0,path.size());
 }
-public void start() {
-synchronized (progressLock) {
-if (isInProgress()) {
-return;
+
+
+@Test
+publicvoidtestNoShortestPath(){
+Boardb=parser
+.parseMap(Lists.newArrayList("#####","###","#####"))
+.getBoard();
+Squares1=b.squareAt(1,1);
+Squares2=b.squareAt(3,1);
+List<Direction>path=Navigation
+.shortestPath(s1,s2,mock(Unit.class));
+assertNull(path);
 }
-if (getLevel().isAnyPlayerAlive()
-&& getLevel().remainingPellets() > 0) {
-inProgress = true;
-getLevel().addObserver(this);
-getLevel().start();
+
+
+@Test
+publicvoidtestNoTraveller(){
+Boardb=parser
+.parseMap(Lists.newArrayList("#####","###","#####"))
+.getBoard();
+Squares1=b.squareAt(1,1);
+Squares2=b.squareAt(3,1);
+List<Direction>path=Navigation.shortestPath(s1,s2,null);
+assertArrayEquals(newDirection[]{Direction.EAST,Direction.EAST},
+path.toArray(newDirection[]{}));
 }
+
+
+@Test
+publicvoidtestSimplePath(){
+Boardb=parser.parseMap(Lists.newArrayList("####","##","####"))
+.getBoard();
+Squares1=b.squareAt(1,1);
+Squares2=b.squareAt(2,1);
+List<Direction>path=Navigation
+.shortestPath(s1,s2,mock(Unit.class));
+assertArrayEquals(newDirection[]{Direction.EAST},
+path.toArray(newDirection[]{}));
 }
+
+
+@Test
+publicvoidtestCornerPath(){
+Boardb=parser.parseMap(
+Lists.newArrayList("####","##","###","####")).getBoard();
+Squares1=b.squareAt(1,1);
+Squares2=b.squareAt(2,2);
+List<Direction>path=Navigation
+.shortestPath(s1,s2,mock(Unit.class));
+assertArrayEquals(newDirection[]{Direction.EAST,Direction.SOUTH},
+path.toArray(newDirection[]{}));
 }
-public void stop() {
-synchronized (progressLock) {
-if (!isInProgress()) {
-return;
+
+
+@Test
+publicvoidtestNearestUnit(){
+Boardb=parser
+.parseMap(Lists.newArrayList("#####","#..#","#####""")).getBoard();
+Squares1=b.squareAt(0,0);
+Unitunit=Navigation.findNearest(Pellet.class,s1);
+assertNull(unit);
 }
-inProgress = false;
-getLevel().stop();
+
+
+@Test
+publicvoidtestFullSizedLevel()throwsIOException{
+try(InputStreami=getClass().getResourceAsStream("/board.txt")){
+Boardb=parser.parseMap(i).getBoard();
+Squares1=b.squareAt(1,1);
+Unitunit=Navigation.findNearest(Ghost.class,s1);
+assertNotNull(unit);
 }
-}
-public boolean isInProgress() {
-return inProgress;
-}
-public abstract List<Player> getPlayers();
-public abstract Level getLevel();
-public void move(Player player, Direction direction) {
-if (isInProgress()) {
-getLevel().move(player, direction);
-}
-}
-@Override
-public void levelWon() {
-stop();
-}
-@Override
-public void levelLost() {
-stop();
 }
 }
