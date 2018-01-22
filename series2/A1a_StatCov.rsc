@@ -56,133 +56,6 @@ alias Coverage = tuple[loc l, int dm, int cm];
 
 M3 jpacmanM3() = createM3FromEclipseProject(|project://jpacman-framework|);
 
-// New stuff
-
-rel[loc from, loc to] validMethodInvocation (M3 project) {
-	return {<from, to> | <from, to> <- project.methodInvocation, !isConstructor(from) && !isConstructor(to) };
-}
-
-set[loc] validMethods (M3 project, loc cls) {
-	return (methods(project, cls) - constructors(project));
-}
-
-// Returns true if given loc is in a set of relations.
-bool inRelations (loc l, Relation rs) {
-	int count = ( 0 | it + 1 | /<_,_,l> <- rs);
-	return count > 0;
-}
-
-// Returns all methods "a" calls "b" where "a" is called from the source set, and "b" is a method "a" called. 
-Relation transitiveClosure (Relation testMethods , Relation graph) {
-	// { <a, "C", c> | <a, "C", b> <- testMethods, <b,"C",c> <- graph };
-	return { <b, "C", c> | <_, "C", b> <- testMethods, <b,"C",c> <- graph };
-}
-
-Relation testMethodCoverage (M3 project) {
-
-	// Obtain project graph.
-	Relation graph = graphProject(project);
-
-	// Filter all test-methods from our project: Assumes all test-methods are annotated.
-	Relation testMethods = { <method, "C", target> | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit"), <method, "C", target> <- graph };
-
-	solve (testMethods) { 
-		testMethods = testMethods + transitiveClosure(testMethods, graph); 
-	}
-				
-	return testMethods;
-}
-
-Relation graphProject (M3 project) {
-
-	// Collect all package-to-class relations.
-	Relation ptc = { <package, "DT", class> | package <- packages(project), class <- classes(project), contains(class.path, package.path) };
-
-	// Collect all class-to-method relations.
-	Relation ctm = { <class, "DM", method> | class <- classes(project), method <- validMethods(project, class) };
-	
-	// Collect all method-to-method invocations: inRelations filters library function calls.
-	Relation mtm = { <source, "C", target> | <source, target> <- validMethodInvocations(project), inRelations(target, ctm) };
-	
-	// Return all relations
-	return ptc + ctm + mtm;
-}
-
-list[Coverage] computeClassCoverage (M3 project) {
-
-	// Obtain Test Method Coverage (Relations).
-	Relation testCoverage = testMethodCoverage(project);
-	
-	set[loc] ts = {method | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit")};
-	printExp("number of test methods: ", size(ts));
-	println("");
-	// Extract all Test Methods in Relations.
-	set[loc] tms = { m | <m,_,_> <- testMethodCoverage(project) } + 
-				   { m | <_,_,m> <- testMethodCoverage(project) };
-	
-	// Compute class coverage.
-	return [<c, size(methods(project, c) - ts), size(methods(project, c) - tms)> | c <- classes(project)];
-} 
-
-// Class Coverage: <Class Location, N.Defined Methods, N.Covered Methods>
-Coverage computeClassCoverage (loc cls,  set[loc] defined, set[loc] tested) {
-	return <cls, size(defined), size(tested & defined)>; 
-}
-
-// Package Coverage: <Package Location, N.Defined Methods, N.Covered Methods>
-Coverage computePackageCoverage (loc pkg, list[Coverage] clsCoverage) {
-	list[Coverage] pkgCoverage = [<cls, dm, cm> | <cls, dm, cm> <- clsCoverage, contains(cls.path, pkg.path) ]; 
-	int defined = (0 | it + n | <cls, n, _> <- pkgCoverage);
-	int covered = (0 | it + n | <cls, _, n> <- pkgCoverage);
-	return <pkg, defined, covered>;
-}
-
-Coverage computeStaticCoverage (loc projectPath) {
-
-	// Create M3 project.
-	M3 project = createM3FromEclipseProject(projectPath);
-
-	// ********************* Compute Project Graph ************************** 
-
-	// Collect all package-to-class relations.
-	Relation ptc = { <pkg, "DT", cls> | pkg <- packages(project), cls <- classes(project), contains(cls.path, pkg.path) };
-
-	// Collect all class-to-method relations.
-	Relation ctm = { <cls, "DM", mth> | cls <- classes(project), mth <- validMethods(project, cls) };
-	
-	// Collect all method-to-method relations: inRelations filters out library calls.
-	Relation mtm = { <src, "C", tgt> | <src, tgt> <- validMethodInvocation(project) };
-	
-	// ********************* Compute Test Coverage ************************** 
-	
-	// Collect all test methods with "junit" in the path: Assumes all test-methods are annotated.
-	set[loc] tms = {method | <loc method, loc annotation> <- project.annotations, contains(annotation.path, "junit"), !isConstructor(method)};
-	
-	// Collect all methods called by the test methods in a Relation.
-	Relation tmr = { <method, "C", target> | method <- tms, <method, "C", target> <- mtm };
-	
-	// Compute transitive closure over test-methods and method-to-method relations.
-	solve (tmr) { 
-		tmr = tmr + transitiveClosure(tmr, mtm); 
-	}
-	
-	// Extract all covered test methods from transitive relations.
-	set[loc] covered = {t | <t,_,_> <- tmr} + {t | <_,_,t> <- tmr};
-	
-	// ********************* Compute Test Coverage **************************
-	
-	// Compute the class coverage.
-	list[Coverage] classCoverage = [computeClassCoverage(cls, validMethods(project, cls), covered) | cls <- classes(project) ];
-	
-	// Compute the package coverage.
-	list[Coverage] pkgCoverage = [computePackageCoverage(pkg, classCoverage) | pkg <- packages(project) ];
-	
-	// Compute the project coverage. (Use classCoverage because package overlaps).
-	Coverage projectCoverage = <projectPath, (0 | it + dm | <_,dm,_> <- classCoverage), (0 | it + cm | <_,_,cm> <- classCoverage)>;
-
-	return projectCoverage;
-}
-
 /*******************************************************************************************/
 
 /* Returns all test classes */
@@ -195,7 +68,7 @@ set[loc] nonConstructorMethods (rel[loc, loc] methods) {
 	return {m | <_,m> <- methods, !isConstructor(m) };
 }
 
-void bestStaticCoverage (loc projectPath) {
+void computeStaticCoverage (loc projectPath) {
 
 	// 1. Initialize an M3 instance from the project.
 	M3 project = createM3FromEclipseProject(projectPath);
@@ -218,6 +91,9 @@ void bestStaticCoverage (loc projectPath) {
 	// 7. Compute all method-to-method relations.
 	rel[loc a, loc b] methodRelations = { <a,b> | <a,b> <- project.methodInvocation, a in allMethods, b in allMethods };
 	
+	// *. Compute all dynamic-dispatch relations (If x calls y, and y is overridden by z, then x may have called z too.
+	methodRelations = methodRelations + { <x,z> | <x,y> <- methodRelations, <z,y> <- project.methodOverrides }; 
+	
 	// 8. Compute coverage by tests.
 	rel[loc a, loc b] testCoverage = { <a,b> | <a,b> <- project.methodInvocation, a in testMethods, b in allMethods };
 	solve (testCoverage) {
@@ -230,8 +106,24 @@ void bestStaticCoverage (loc projectPath) {
 	// 10. Compute all non-covered methods
 	set[loc] nonCoveredMethods = (allMethods - testMethods) - coveredMethods;
 
-	println("Number of covered methods: <size(coveredMethods)> number of methods: <size(allMethods - testMethods)>");
+	println("***************************** A1a_StatCov: RESULTS *********************************");
+	println("FACTS");
+	println("\tNumber of methods: <size(allMethods - testMethods)>");
+	println("\tNumber of covered methods: <size(coveredMethods)>");
 	
+	println("QUESTIONS");
+	println("\tWhat methods are not covered?");
+	println("\tThere are <size(nonCoveredMethods)> total non-covered methods");
+	println("\n\tCovered\t\tNot-Covered\t\tClass Name");
+	println("---------------------------------------------------------------");
+	for (c <- allClasses) {
+		set[loc] allDeclaredClassMethods = { declaredMethod | declaredMethod <- methods(project, c), declaredMethod in allMethods };
+		set[loc] coveredClassMethods = { declaredMethod | declaredMethod <- allDeclaredClassMethods, declaredMethod in coveredMethods };
+		set[loc] notCoveredClassMethods = allDeclaredClassMethods - coveredClassMethods;
+		println("\t<size(coveredClassMethods)>\t\t<size(notCoveredClassMethods)>\t\t<c.file>");	
+	}
+	println("---------------------------------------------------------------");
+	//println(<nonCoveredMethods>);
 }
 
 

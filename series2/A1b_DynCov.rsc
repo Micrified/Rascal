@@ -54,7 +54,7 @@ set[loc] nonConstructorMethods (rel[loc, loc] methods) {
 	return {m | <_,m> <- methods, !isConstructor(m) };
 }
 
-
+/* Adjusts a given location for a block such that the returned location lies just within said block */
 loc inBlock (loc l) {
 	l.offset = l.offset + 1;
 	l.length = 0;
