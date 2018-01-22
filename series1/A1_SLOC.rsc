@@ -41,12 +41,12 @@ Bonus:
 alias SLOC = map[loc file, int sloc];
 
 /* Test for comment removal */
-loc commentTestFile = |project://sqat-analysis/src/sqat/series1/A1_SLOC_CommentTestFile.java|; 
+loc commentTestFile = |project://sqat-analysis/src/sqat/series1/A1_Tests/A1_SLOC_CommentTestFile.java|; 
 test bool commentTest() = 
 	sourceLines(commentTestFile) == 1;
 
 /* Test for whitespace removal */
-loc whitespaceTestFile = |project://sqat-analysis/src/sqat/series1/A1_SLOC_WhitespaceTestFile.java|;
+loc whitespaceTestFile = |project://sqat-analysis/src/sqat/series1/A1_Tests/A1_SLOC_WhitespaceTestFile.java|;
 test bool whitespaceTest() = 
 	sourceLines(whitespaceTestFile) == 9;
 	
@@ -88,7 +88,7 @@ SLOC sloc (loc project) {
 }
 
 /* Main Program */
-void main () {
+void a1 () {
 	SLOC slocMap = sloc(|project://jpacman-framework|);
 
 	// What is the biggest file in JPacman?
