@@ -55,7 +55,7 @@ set[loc] nonConstructorMethods (rel[loc, loc] methods) {
 }
 
 
-loc afterBrace (loc l) {
+loc inBlock (loc l) {
 	l.offset = l.offset + 1;
 	l.length = 0;
 	return l;
@@ -67,26 +67,37 @@ list[tuple[loc i, loc m, loc s]] instrumentClassMethod (loc methodLocation, Stat
 	
 	visit (methodBody) {
 		case s_ifElse : \if(Expression condition, Statement thenBranch, Statement elseBranch) :
-			logs = logs + [<afterBrace(thenBranch.src), methodLocation, thenBranch.src>,
-						   <afterBrace(afterBrace(elseBranch.src)), methodLocation, elseBranch.src>];
-		case s_case : \case(Expression expression) :
+			logs = logs + [<inBlock(thenBranch.src), methodLocation, thenBranch.src>,
+						   <inBlock(elseBranch.src), methodLocation, elseBranch.src>];
+		case s_case : \case(_) :
 			logs = logs + <s_case.src, methodLocation, s_case.src>;
+			
+		case s_dcase: \defaultCase() :
+			logs = logs + <s_dcase.src, methodLocation, s_dcase.src>;
+
+		case s_do: \do(Statement body, Expression condition) :
+			logs = logs + <inBlock(body.src), methodLocation, s_do.src>;
+			
+		case s_forEach: \foreach(Declaration parameter, Expression collection, Statement body) :
+			logs = logs + <inBlock(body.src), methodLocation, s_forEach.src>;
+			
+		case s_forCond: \for(list[Expression] initializers, Expression condition, list[Expression] updaters, Statement body) :
+			logs = logs + <inBlock(body.src), methodLocation, s_forCond.src>;
+			
+		case s_for: \for(list[Expression] initializers, list[Expression] updaters, Statement body) :
+			logs = logs + <inBlock(body.src), methodLocation, s_for.src>;
+			
+		case s_if: \if(Expression condition, Statement thenBranch) :
+			logs = logs + <inBlock(thenBranch.src), methodLocation, s_if.src>;
+			
+		case s_label: \label(str name, Statement body) :
+			logs = logs + <inBlock(body.src), methodLocation, s_label.src>;
+			
+		case s_while: \while(Expression condition, Statement body) :
+			logs = logs + <inBlock(body.src), methodLocation, s_while.src>;			
 	}
 	
 	return logs;
-}
-
-void instrumentationTest (loc file) {
-	
-		Declaration ast = createAstsFromFile(file,true);
-		
-		visit (ast) {
-			case m: \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, b: \block(list[Statement] statements)) :
-				print("hi");
-			case m: \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl)) :
-				print("Not doing anything for this!");
-		}
-
 }
 
 void instrumentClass (loc file) {
@@ -99,7 +110,7 @@ void instrumentClass (loc file) {
 	// 2. Instrument all methods.
 	visit (ast) {
 		case m: \method(Type \return, str name, list[Declaration] parameters, list[Expression] exceptions, Statement impl) :
-			items = items + <afterBrace(impl.src), m.src, empty> + instrumentClassMethod(m.src, impl); 	
+			items = items + <inBlock(impl.src), m.src, empty> + instrumentClassMethod(m.src, impl); 	
 	}
 	
 	// 3. Sort list.

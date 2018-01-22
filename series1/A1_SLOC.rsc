@@ -127,8 +127,8 @@ str filterConsecutiveNewlines (str s) {
 /* Returns number of source codes for file */
 int sourceLines (loc file) {
 	str fileStr = readFile(file);
-	//str result = filterConsecutiveNewlines(filterComments(fileStr));
-	str result = removeComments(fileStr);
+	str result = filterConsecutiveNewlines(filterComments(fileStr));
+	//str result = removeComments(fileStr);
 	return size(split("\n", result));
 }
 
