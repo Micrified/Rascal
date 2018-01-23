@@ -50,6 +50,7 @@ int betterCountDirs(FileSystem fs) {
 // the file system. Operator := is a matching operating for an expression.
 // := "Match LHS pattern against RHS value. Works on tree-like structures".
 // Will work on a set of filesystems too. Can traverse each element of the set at arbitrary depth.
+
 int bestCountDirs(FileSystem fs) = ( 0 | it + 1 | /directory(_, _) := fs);
 
 // Another example of using forward slash to pattern match.
