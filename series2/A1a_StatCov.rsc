@@ -123,7 +123,12 @@ void computeStaticCoverage (loc projectPath) {
 		println("\t<size(coveredClassMethods)>\t\t<size(notCoveredClassMethods)>\t\t<c.file>");	
 	}
 	println("---------------------------------------------------------------");
-	//println(<nonCoveredMethods>);
+	
+	/* How do the results compare ? 
+     * Paper got 84.53% coverage. We got 61% coverage (105/172). So a decent amount less.
+     * Clover reports 76.6% coverage. Closer to the paper than ours.
+	
+	*/
 }
 
 
