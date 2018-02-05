@@ -10,6 +10,12 @@ import String;
 import Set;
 import Java17ish;
 
+// syntax BlockStm = 
+// Stm
+// | ... ;
+
+// syntax Stm = \return: "return" Expr? ";"
+
 // Helper function to deal with concrete statement lists
 // second arg should be a closure taking a location (of the element)
 // and producing the BlockStm to-be-inserted 
@@ -17,7 +23,10 @@ BlockStm* putAfterEvery(BlockStm* stms, BlockStm(loc) f) {
   
   Block put(b:(Block)`{}`) = (Block)`{<BlockStm s>}`
     when BlockStm s := f(b@\loc);
-  
+    
+  Block put((Block)`{return <Expr? e0> ;}`) = (Block)`{<BlockStm s> <Stm k>}`
+  	when BlockStm s := f(k@\loc);
+  		
   Block put((Block)`{<BlockStm s0>}`) = (Block)`{<BlockStm s0> <BlockStm s>}`
     when BlockStm s := f(s0@\loc);
   
@@ -47,7 +56,7 @@ start[CompilationUnit] instrumentClass (loc classLoc) {
 		return parse(#BlockStm, "DynamicLogger.getInstance().hit(\"<classLoc>\", \"<methodLoc>\", \"<lineLoc>\");");
 	}
 	
-	/* Perform subtree replacement with => */
+	/* Perform subtree replacement. */
 	parseTree = visit (parseTree) {
 		case (MethodDec)`<MethodDecHead h> {<BlockStm* b>}` => (MethodDec)`<MethodDecHead h> {<BlockStm h2> <BlockStm* b2>}`
 		  when 
