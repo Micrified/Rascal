@@ -130,7 +130,7 @@ str entityToLocation (Entity e) {
 /*					        Evaluation Functions						       */
 /*****************************************************************************/
 
-//start[Dicto] arc = parse(#start[Dicto], |project://sqat-analysis/src/sqat/series2/architectureRules.dicto|);
+start[Dicto] arc = parse(#start[Dicto], |project://sqat-analysis/src/sqat/series2/architectureRules.dicto|);
 
 set[Message] eval(start[Dicto] dicto, M3 m3) = eval(dicto.top, m3);
 
