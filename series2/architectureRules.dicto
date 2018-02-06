@@ -1,3 +1,4 @@
 nl.tudelft.jpacman.ui.PacManUiBuilder can only instantiate nl.tudelft.jpacman.ui.PacManUi
 nl.tudelft.jpacman.ui.PacKeyListener can only invoke nl.tudelft.jpacman.ui.PacKeyListener::keyPressed
 nl.tudelft.jpacman.level.PlayerFactory must invoke nl.tudelft.jpacman.level.PlayerFactory::createPacMan
+nl.tudelft.jpacman.npc cannot import nl.tudelft.jpacman.ui

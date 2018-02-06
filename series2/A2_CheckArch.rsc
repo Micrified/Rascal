@@ -6,7 +6,6 @@ import Message;
 import ParseTree;
 import IO;
 
-
 /*
 
 This assignment has two parts:
@@ -58,6 +57,80 @@ Questions
   of Dicto (and explain why you'd need them). 
 */
 
+/*****************************************************************************/
+/*								Global Variables							   */
+/*****************************************************************************/
+
+// The M3 Tree.
+M3 m3;
+
+
+/*****************************************************************************/
+/*					        Evaluation Functions							   */
+/*****************************************************************************/
+
+// Returns true if class a imports class b.
+bool imports (loc a, loc b) {
+
+	// Collect all imports (use dependencies as a workaround).
+	rel[loc from, loc to] imports = {<x,y> | <x,y> <- m3.typeDependency, contains(x.path, a.path) && contains(b.path, y.path)};
+
+	return size(imports) > 0;
+}
+
+// Returns true if class a inherits class b.
+bool inherits (loc a, loc b) {
+	return (<a, b> in m3.extends);
+}
+
+// Returns true if class invokes method.
+bool invokes (loc classLoc, loc methodLoc) {
+	return (<classLoc, methodLoc> in m3.methodInvocation);
+}
+
+// Returns true if class a depends (Invokes or inherits anything) on class b.
+bool depends (loc a, loc b) {
+
+	// Collect all class dependencies between a and b.
+	rel[loc from, loc to] dependencies = {<a,b> | <a,b> <- m3.typeDependency};
+	
+	return (!inherits(a,b) && !invokes(a,b) && size(dependencies) == 0);
+}
+
+// Returns true if class a instantiates class b.
+bool instantiates (loc a, loc b) {
+	
+	// Obtain calls a made to b's constructors.
+	rel[loc from, loc to] constructorCalls = { <a, c> | c <- constructors(m3,b), <a, c> in m3.methodInvocation };
+	
+	// Return true if the relation is not empty.
+	return (size(constructorCalls) > 0);
+}
+
+/*****************************************************************************/
+/*					         Location Functions						       */
+/*****************************************************************************/
+
+//{Id "."}+
+// | method: {Id "."}+ "::" Id
+
+/* Converts a entity string to a loc type */
+str entityToLocation (Entity e) {
+	list[str] ids = [];
+	
+	visit (e) {
+		case i: (Entity)`<Id i>`:
+			ids += "<i>";
+	}
+	
+	return (":///" | it + "<x>/" | x <- ids);
+}
+
+/*****************************************************************************/
+/*					        Evaluation Functions						       */
+/*****************************************************************************/
+
+//start[Dicto] arc = parse(#start[Dicto], |project://sqat-analysis/src/sqat/series2/architectureRules.dicto|);
 
 set[Message] eval(start[Dicto] dicto, M3 m3) = eval(dicto.top, m3);
 
@@ -67,8 +140,40 @@ set[Message] eval((Dicto)`<Rule* rules>`, M3 m3)
 set[Message] eval(Rule rule, M3 m3) {
   set[Message] msgs = {};
   
-  // to be done
+  	switch(rule) {
+  	
+  		// Modality: "must".
+		case (Rule)`<Entity e1> must import <Entity e2>` : ;
+		case (Rule)`<Entity e1> must depend <Entity e2>` : ;
+		case (Rule)`<Entity e1> must invoke <Entity e2>` : ;
+		case (Rule)`<Entity e1> must instantiate <Entity e2>` : ;
+		case (Rule)`<Entity e1> must inherit <Entity e2>` : ;
+		
+		// Modality: "may".
+		case (Rule)`<Entity e1> may import <Entity e2>` : ;
+		case (Rule)`<Entity e1> may depend <Entity e2>` : ;
+		case (Rule)`<Entity e1> may invoke <Entity e2>` : ;
+		case (Rule)`<Entity e1> may instantiate <Entity e2>` : ;
+		case (Rule)`<Entity e1> may inherit <Entity e2>` : ;
+		
+		// Modality: "cannot".
+		case (Rule)`<Entity e1> cannot import <Entity e2>` : ;
+		case (Rule)`<Entity e1> cannot depend <Entity e2>` : ;
+		case (Rule)`<Entity e1> cannot invoke <Entity e2>` : ;
+		case (Rule)`<Entity e1> cannot instantiate <Entity e2>` : ;
+		case (Rule)`<Entity e1> cannot inherit <Entity e2>` : ;
+		
+		// Modality: "can only".
+		case (Rule)`<Entity e1> can only import <Entity e2>` : ;
+		case (Rule)`<Entity e1> can only depend <Entity e2>` : ;
+		case (Rule)`<Entity e1> can only invoke <Entity e2>` : ;
+		case (Rule)`<Entity e1> can only instantiate <Entity e2>` : ;
+		case (Rule)`<Entity e1> can only inherit <Entity e2>` : ;
+	}
   
   return msgs;
 }
+
+
+
 
