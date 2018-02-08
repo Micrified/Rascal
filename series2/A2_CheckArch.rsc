@@ -3,6 +3,8 @@ module sqat::series2::A2_CheckArch
 import sqat::series2::Dicto;
 import lang::java::jdt::m3::Core;
 import Message;
+import Set;
+import String;
 import ParseTree;
 import IO;
 
@@ -61,70 +63,110 @@ Questions
 /*								Global Variables							   */
 /*****************************************************************************/
 
-// The M3 Tree.
-M3 m3;
-
-
 /*****************************************************************************/
 /*					        Evaluation Functions							   */
 /*****************************************************************************/
 
-// Returns true if class a imports class b.
-bool imports (loc a, loc b) {
-
-	// Collect all imports (use dependencies as a workaround).
-	rel[loc from, loc to] imports = {<x,y> | <x,y> <- m3.typeDependency, contains(x.path, a.path) && contains(b.path, y.path)};
-
-	return size(imports) > 0;
+// Returns true if "from" imports everything from "to".
+bool imports (M3 m3, set[loc] from, set[loc] to) {
+	return (true | it && (<a,b> in m3.typeDependency) | a <- from, b <- to);
 }
 
-// Returns true if class a inherits class b.
-bool inherits (loc a, loc b) {
-	return (<a, b> in m3.extends);
+// Returns true if "child" inherits everything from "parent".
+bool inherits (M3 m3, set[loc] child, set[loc] parent) {
+	return (true | it && (<a,b> in m3.extends) | a <- child, b <- parent);
 }
 
-// Returns true if class invokes method.
-bool invokes (loc classLoc, loc methodLoc) {
-	return (<classLoc, methodLoc> in m3.methodInvocation);
+// Returns true if "from" invokes everything from "to".
+bool invokes (M3 m3,  set[loc] from, set[loc] to) {
+	return (true | it && (<a,b> in m3.methodInvocation) | a <- from, b <- to);
 }
 
-// Returns true if class a depends (Invokes or inherits anything) on class b.
-bool depends (loc a, loc b) {
-
-	// Collect all class dependencies between a and b.
-	rel[loc from, loc to] dependencies = {<a,b> | <a,b> <- m3.typeDependency};
-	
-	return (!inherits(a,b) && !invokes(a,b) && size(dependencies) == 0);
+// Returns true if "a" depends (inherits | invokes | imports) from "b".
+bool depends (M3 m3, set[loc] a, set[loc] b) {
+	return (inherits(m3,a,b) || invokes(m3,a,b) || imports(m3,a,b));
 }
 
-// Returns true if class a instantiates class b.
-bool instantiates (loc a, loc b) {
-	
-	// Obtain calls a made to b's constructors.
-	rel[loc from, loc to] constructorCalls = { <a, c> | c <- constructors(m3,b), <a, c> in m3.methodInvocation };
-	
-	// Return true if the relation is not empty.
-	return (size(constructorCalls) > 0);
+// Returns true if "from" instantiates everything in "to".
+bool instantiates (M3 m3, set[loc] from, set[loc] to) {
+	return (true | it && (<a,b> in m3.methodInvocation) | a <- from, b <- to, isConstructor(b));
 }
 
 /*****************************************************************************/
 /*					         Location Functions						       */
 /*****************************************************************************/
 
-//{Id "."}+
-// | method: {Id "."}+ "::" Id
+// Returns the path attribute of an entity.
+str pathOf (Entity e, str prefix = "", str suffix = "") {
+	str path ((Entity)`<{Id "."}+ ids>`) {
+		return ("" | it + "<id>/" | id <- ids);
+	}
+	str path ((Entity)`<{Id "."}+ ids> :: <Id m>`) {
+		return ("" | it + "<id>/" | id <- ids);
+	}
+	return prefix + path(e)[..-1] + suffix;
+}
 
-/* Converts a entity string to a loc type */
-str entityToLocation (Entity e) {
-	list[str] ids = [];
-	
-	visit (e) {
-		case i: (Entity)`<Id i>`:
-			ids += "<i>";
+// Returns the method attribute of an entity.
+str methodOf (Entity e) {
+	str method ((Entity)`<{Id "."}+ ids>`) {
+		return "";
+	}
+	str method((Entity)`<{Id "."}+ ids> :: <Id m>`) {
+		return "<m>()";
+	}
+	return method(e);
+}
+
+bool isDir (str ext) {
+	loc l1 = |project://jpacman-framework/src/main/java/|;
+	loc l2 = |project://jpacman-framework/src/test/java/|;
+	l1.path = l1.path + ext;
+	l2.path = l2.path + ext;
+	return (isDirectory(l1) || isDirectory(l2));
+}
+
+loc findMethod (M3 m3, Entity e) {
+	set[loc] m = {m | m <- methods(m3), contains(resolveLocation(m), entityToLocation(e)), contains(m, methodOf(e))};
+	return resolveLocation(getOneFrom(m));
+}
+
+set[loc] toLoc (M3 m3, (Entity)`<{Id "."}+ ids> :: <Id methodName>`) {
+
+	bool endsWithMethod (str path, str methodName) {
+		set[str] matches = { match | /<match: <methodName>([^)])>/ := path };
+		return size(matches) == 1;
 	}
 	
-	return (":///" | it + "<x>/" | x <- ids);
+	str l = ("" | it + "<id>/" | id <- ids)[..-1];
+	set[loc] ms = {m | m <- methods(m3), contains(resolveLocation(m).path, l), endsWithMethod(m.file, "<methodName>")};
+	//return resolveLocation(getOneFrom(ms));
+	return ms;
 }
+
+set[loc] packageClasses (M3 m3, loc pkg) {
+	set[loc] total = elements(m3, pkg);
+	set[loc] pkgs = { p | p <- total, !isClass(p) };
+	return (total - pkgs | it + packageClasses(m3, p) | p <- pkgs);
+}
+
+set[loc] toLoc (M3 m3, (Entity)`<{Id "."}+ ids>`) {
+	
+	set[loc] packageLocations (str packageName) {
+		set[loc] ps = {p | p <- packages(m3), endsWith(p.path, packageName)};
+		return ({} | it + packageClasses(p) | p <- ps);
+	}
+	
+	set[loc] classLocation (str className) {
+		set[loc] cs = {c | c <- classes(m3), contains(resolveLocation(c).path, className + ".java")};
+		cs = cs - {nc | c <- cs, nc <- nestedClasses(m3, c)};
+		return cs;
+	}
+
+	str name = ("" | it + "<id>/" | id <- ids)[..-1];
+	return (isDir(name) ? packageLocations(name) : classLocation(name));
+}
+
 
 /*****************************************************************************/
 /*					        Evaluation Functions						       */
@@ -140,14 +182,53 @@ set[Message] eval((Dicto)`<Rule* rules>`, M3 m3)
 set[Message] eval(Rule rule, M3 m3) {
   set[Message] msgs = {};
   
+  	void addMsgOnCondition();
+  	set[loc] a = {};
+  	set[loc] b = {};
+  
   	switch(rule) {
   	
   		// Modality: "must".
-		case (Rule)`<Entity e1> must import <Entity e2>` : ;
-		case (Rule)`<Entity e1> must depend <Entity e2>` : ;
-		case (Rule)`<Entity e1> must invoke <Entity e2>` : ;
-		case (Rule)`<Entity e1> must instantiate <Entity e2>` : ;
-		case (Rule)`<Entity e1> must inherit <Entity e2>` : ;
+		case (Rule)`<Entity e1> must import <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (!imports(m3, a, b)) {
+				msgs += {warning("<c.path> must import <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> must depend <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (!depends(m3, a, b)) {
+				msgs += {warning("<c.path> must depend on <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> must invoke <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (!invokes(m3, a, b)) {
+				msgs += {warning("<c.path> must invoke <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> must instantiate <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (!instantiates(m3, a, b)) {
+				msgs += {warning("<c.path> must instantiate <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> must inherit <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (!inherits(m3, a, b)) {
+				msgs += {warning("<c.path> must inherit from <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
 		
 		// Modality: "may".
 		case (Rule)`<Entity e1> may import <Entity e2>` : ;
@@ -157,14 +238,53 @@ set[Message] eval(Rule rule, M3 m3) {
 		case (Rule)`<Entity e1> may inherit <Entity e2>` : ;
 		
 		// Modality: "cannot".
-		case (Rule)`<Entity e1> cannot import <Entity e2>` : ;
-		case (Rule)`<Entity e1> cannot depend <Entity e2>` : ;
-		case (Rule)`<Entity e1> cannot invoke <Entity e2>` : ;
-		case (Rule)`<Entity e1> cannot instantiate <Entity e2>` : ;
-		case (Rule)`<Entity e1> cannot inherit <Entity e2>` : ;
+		case (Rule)`<Entity e1> cannot import <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (imports(m3, a, b)) {
+				msgs += {warning("<c.path> cannot import <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> cannot depend <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (depends(m3, a, b)) {
+				msgs += {warning("<c.path> cannot depend on <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> cannot invoke <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (invokes(m3, a, b)) {
+				msgs += {warning("<c.path> cannot invoke <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> cannot instantiate <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (instantiates(m3, a, b)) {
+				msgs += {warning("<c.path> cannot instantiate <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
+		case (Rule)`<Entity e1> cannot inherit <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			if (inherits(m3, a, b)) {
+				msgs += {warning("<c.path> cannot inherit from <d.path>", c) | c <- a, d <- b};
+			}
+			break;
+		}
 		
 		// Modality: "can only".
-		case (Rule)`<Entity e1> can only import <Entity e2>` : ;
+		case (Rule)`<Entity e1> can only import <Entity e2>` : {
+			a = toLoc(e1);
+			b = toLoc(e2);
+			//total = m3.typeDependency + m3.extends + m3....
+		}
 		case (Rule)`<Entity e1> can only depend <Entity e2>` : ;
 		case (Rule)`<Entity e1> can only invoke <Entity e2>` : ;
 		case (Rule)`<Entity e1> can only instantiate <Entity e2>` : ;
