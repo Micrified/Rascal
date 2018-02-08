@@ -362,6 +362,26 @@ set[Message] eval(Rule rule, M3 m3) {
   return msgs;
 }
 
+set[Message] a2 (loc project) {
+	
+	// Initialize the M3 object.
+	M3 m3 = createM3FromEclipseProject(project);
+	
+	// Initialize the rules.
+	start[Dicto] rules = parse(#start[Dicto], |project://sqat-analysis/src/sqat/series2/architectureRules.dicto|);
+	
+	// Evaluate the rules.
+	set[Message] messages = eval(rules, m3);
+	
+	// Answer questions.
+	println("How would you test your evaluator of Dicto rules?");
+	println("- To test our evaluator, we would simple construct a series of sets that can be used to assess every possible constaint allowed in the grammar.");
+	
+	println("Come up with 3 rule types that are not currently supported by this version of Dicto (and explain why you\'d need them).");
+	println("-");
+	
+	return messages;
+}
 
 
 
