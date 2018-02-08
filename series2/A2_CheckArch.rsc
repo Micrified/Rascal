@@ -63,6 +63,8 @@ Questions
 /*								Global Variables							   */
 /*****************************************************************************/
 
+M3 m3 = createM3FromEclipseProject(|project://jpacman-framework|);
+
 /*****************************************************************************/
 /*					        Evaluation Functions							   */
 /*****************************************************************************/
@@ -93,18 +95,18 @@ bool instantiates (M3 m3, set[loc] from, set[loc] to) {
 }
 
 /*****************************************************************************/
-/*					         Location Functions						       */
+/*					         Utility Functions						       */
 /*****************************************************************************/
 
 // Returns the path attribute of an entity.
-str pathOf (Entity e, str prefix = "", str suffix = "") {
+str pathOf (Entity e) {
 	str path ((Entity)`<{Id "."}+ ids>`) {
 		return ("" | it + "<id>/" | id <- ids);
 	}
 	str path ((Entity)`<{Id "."}+ ids> :: <Id m>`) {
 		return ("" | it + "<id>/" | id <- ids);
 	}
-	return prefix + path(e)[..-1] + suffix;
+	return path(e)[..-1];
 }
 
 // Returns the method attribute of an entity.
@@ -118,6 +120,7 @@ str methodOf (Entity e) {
 	return method(e);
 }
 
+// Retruns true if the given path "ext" is a directory within main/test.
 bool isDir (str ext) {
 	loc l1 = |project://jpacman-framework/src/main/java/|;
 	loc l2 = |project://jpacman-framework/src/test/java/|;
@@ -126,13 +129,16 @@ bool isDir (str ext) {
 	return (isDirectory(l1) || isDirectory(l2));
 }
 
+// Locates and returns a method location best matching that of the given entity.
 loc findMethod (M3 m3, Entity e) {
 	set[loc] m = {m | m <- methods(m3), contains(resolveLocation(m), entityToLocation(e)), contains(m, methodOf(e))};
 	return resolveLocation(getOneFrom(m));
 }
 
+// Converts a Dicto method name to a set of matching M3 locs.
 set[loc] toLoc (M3 m3, (Entity)`<{Id "."}+ ids> :: <Id methodName>`) {
 
+	// Returns true if the given "path" ends with the method call "methodName". Ignores parameters.
 	bool endsWithMethod (str path, str methodName) {
 		set[str] matches = { match | /<match: <methodName>([^)])>/ := path };
 		return size(matches) == 1;
@@ -140,23 +146,26 @@ set[loc] toLoc (M3 m3, (Entity)`<{Id "."}+ ids> :: <Id methodName>`) {
 	
 	str l = ("" | it + "<id>/" | id <- ids)[..-1];
 	set[loc] ms = {m | m <- methods(m3), contains(resolveLocation(m).path, l), endsWithMethod(m.file, "<methodName>")};
-	//return resolveLocation(getOneFrom(ms));
 	return ms;
 }
 
-set[loc] packageClasses (M3 m3, loc pkg) {
-	set[loc] total = elements(m3, pkg);
-	set[loc] pkgs = { p | p <- total, !isClass(p) };
-	return (total - pkgs | it + packageClasses(m3, p) | p <- pkgs);
-}
-
+// Converts a Dicto package or class to a set of matching M3 locs.
 set[loc] toLoc (M3 m3, (Entity)`<{Id "."}+ ids>`) {
-	
-	set[loc] packageLocations (str packageName) {
-		set[loc] ps = {p | p <- packages(m3), endsWith(p.path, packageName)};
-		return ({} | it + packageClasses(p) | p <- ps);
+
+	// Recursive function that collects all java+class locations in a package.
+	set[loc] packageClasses (M3 m3, loc pkg) {
+		set[loc] total = elements(m3, pkg);
+		set[loc] pkgs = { p | p <- total, !isClass(p) };
+		return (total - pkgs | it + packageClasses(m3, p) | p <- pkgs);
 	}
 	
+	// Returns a set of all class locations within a package.
+	set[loc] packageLocations (str packageName) {
+		set[loc] ps = {p | p <- packages(m3), endsWith(p.path, packageName)};
+		return ({} | it + packageClasses(m3, p) | p <- ps);
+	}
+	
+	// Returns a set of all class locations matching a given class.
 	set[loc] classLocation (str className) {
 		set[loc] cs = {c | c <- classes(m3), contains(resolveLocation(c).path, className + ".java")};
 		cs = cs - {nc | c <- cs, nc <- nestedClasses(m3, c)};
@@ -181,114 +190,173 @@ set[Message] eval((Dicto)`<Rule* rules>`, M3 m3)
   
 set[Message] eval(Rule rule, M3 m3) {
   set[Message] msgs = {};
+  set[loc] a = {}, b = {};
+  //void addMsgOnCondition();
   
-  	void addMsgOnCondition();
-  	set[loc] a = {};
-  	set[loc] b = {};
   
-  	switch(rule) {
-  	
-  		// Modality: "must".
+  switch(rule) {
+  
+  		// ******************** MODALITY: "must". ********************
+  		
 		case (Rule)`<Entity e1> must import <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" doesn't import "b": Place warnings in "a".
 			if (!imports(m3, a, b)) {
 				msgs += {warning("<c.path> must import <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> must depend <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" doesn't depend on "b": Place warnings in "a".
 			if (!depends(m3, a, b)) {
 				msgs += {warning("<c.path> must depend on <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> must invoke <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" doesn't invoke "b": Place warnings in "a".
 			if (!invokes(m3, a, b)) {
 				msgs += {warning("<c.path> must invoke <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> must instantiate <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" doesn't instantiate "b": Place warnings in "a".
 			if (!instantiates(m3, a, b)) {
 				msgs += {warning("<c.path> must instantiate <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> must inherit <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" doesn't inherit from "b": Place warnngs in "a".
 			if (!inherits(m3, a, b)) {
 				msgs += {warning("<c.path> must inherit from <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
 		
-		// Modality: "may".
-		case (Rule)`<Entity e1> may import <Entity e2>` : ;
+		// ******************** MODALITY: "may". ********************
+		
+		case (Rule)`<Entity e1> may import <Entity e2>` : ;	// May is optional. Do nothing.
 		case (Rule)`<Entity e1> may depend <Entity e2>` : ;
 		case (Rule)`<Entity e1> may invoke <Entity e2>` : ;
 		case (Rule)`<Entity e1> may instantiate <Entity e2>` : ;
 		case (Rule)`<Entity e1> may inherit <Entity e2>` : ;
 		
-		// Modality: "cannot".
+		// ******************** MODALITY: "cannot". ********************
+
 		case (Rule)`<Entity e1> cannot import <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" imports "b": Place warnings in "a".
 			if (imports(m3, a, b)) {
 				msgs += {warning("<c.path> cannot import <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> cannot depend <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" depends on "b": Place warnings in "a".
 			if (depends(m3, a, b)) {
 				msgs += {warning("<c.path> cannot depend on <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> cannot invoke <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" invokes "b": Place warnings in "a".
 			if (invokes(m3, a, b)) {
 				msgs += {warning("<c.path> cannot invoke <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> cannot instantiate <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" instantiates "b": Place warnings in "a".
 			if (instantiates(m3, a, b)) {
 				msgs += {warning("<c.path> cannot instantiate <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
+		
 		case (Rule)`<Entity e1> cannot inherit <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// If "a" inherits from "b": Place warnings in "a".
 			if (inherits(m3, a, b)) {
 				msgs += {warning("<c.path> cannot inherit from <d.path>", c) | c <- a, d <- b};
 			}
-			break;
 		}
 		
-		// Modality: "can only".
+		// ******************** MODALITY: "can only". ********************
+		// Intepretation: Entity e1 can only <verb> from package Entity e2.
+		
 		case (Rule)`<Entity e1> can only import <Entity e2>` : {
-			a = toLoc(e1);
-			b = toLoc(e2);
-			//total = m3.typeDependency + m3.extends + m3....
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// The set of imports from "a" outside "b" must be empty.
+			set[loc] badImports = { importee | <importer, importee> <- m3.typeDependency, importer in a, !(importee in b) };
+			
+			if (size(badImports) > 0) {
+				msgs += {warning("<c.path> can only import from <d.path>", c) | c <- a, d <- b};
+			}
 		}
-		case (Rule)`<Entity e1> can only depend <Entity e2>` : ;
-		case (Rule)`<Entity e1> can only invoke <Entity e2>` : ;
-		case (Rule)`<Entity e1> can only instantiate <Entity e2>` : ;
-		case (Rule)`<Entity e1> can only inherit <Entity e2>` : ;
+		
+		case (Rule)`<Entity e1> can only depend <Entity e2>` : {
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// A must neither inherit, invoke, or import from locations outside of b.
+			set[loc] badDependencies =	{ parent | <child, parent> <- m3.extends, child in a, !(parent in b) } +
+										{ invocation | <invokee, invocation> <- m3.methodInvocation, invokee in a, !(invocation in methodsOfB) } +
+										{ importee | <importer, importee> <- m3.typeDependency, importer in a, !(importee in b) };
+		
+			if (size(badDependencies) > 0) {
+				msgs += {warning("<c.path> can only depend on <d.path>", c) | c <- a, d <- b};
+			}
+		}
+		case (Rule)`<Entity e1> can only invoke <Entity e2>` : {
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// The set of invocations of "a" to methods outside of "b" must be empty.
+			set[loc] methodsOfB = ( {} | it + methods(m3, c) | c <- b );
+			set[loc] badInvocations = { invocation | <invokee, invocation> <- m3.methodInvocation, invokee in a, !(invocation in methodsOfB) };
+			
+			if (size(badInvocations) > 0) {
+				msgs += {warning("<c.path> can only invoke from <d.path>", c) | c <- a, d <- b};
+			}
+		}
+		
+		case (Rule)`<Entity e1> can only instantiate <Entity e2>` : {
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// The set of instantiations in "a" to classes outside "b" must be empty. 
+			set[loc] badInstantiations = { instantiation | <instantiator, instantiation> <- m3.methodInvocation, instantiator in a, isConstructor(instantiation), !(instantiation in b) };
+			
+			if (size(badInstantiations) > 0) {
+				msgs += {warning("<c.path> can only instantiate from <d.path>", c) | c <- a, d <- b};
+			}
+		}
+		
+		case (Rule)`<Entity e1> can only inherit <Entity e2>` : {
+			a = toLoc(m3, e1); b = toLoc(m3, e2);
+			
+			// The set of classes "a" inherits from, that are not in "b", must not be empty. 
+			set[loc] badInheritances = { parent | <child, parent> <- m3.extends, child in a, !(parent in b) };
+			
+			if (size(badInheritances) > 0) {
+				msgs += {warning("<c.path> can only inherit from <d.path>", c) | c <- a, d <- b};
+			}
+		}
 	}
   
   return msgs;
