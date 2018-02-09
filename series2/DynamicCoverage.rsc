@@ -1,4 +1,4 @@
-module sqat::series2::A1b_DynCov
+module sqat::series2::DynamicCoverage
 
 import lang::java::jdt::m3::Core;
 import lang::java::jdt::m3::AST;
@@ -12,57 +12,12 @@ import Set;
 import Java17ish;
 import util::Math;
 
-/*
-
-Assignment: instrument (non-test) code to collect dynamic coverage data.
-
-- Write a little Java class that contains an API for collecting coverage information
-  and writing it to a file. NB: if you write out CSV, it will be easy to read into Rascal
-  for further processing and analysis (see here: lang::csv::IO)
-
-- Write two transformations:
-  1. to obtain method coverage statistics
-     (at the beginning of each method M in class C, insert statement `hit("C", "M")`
-  2. to obtain line-coverage statistics
-     (insert hit("C", "M", "<line>"); after every statement.)
-
-The idea is that running the test-suite on the transformed program will produce dynamic
-coverage information through the insert calls to your little API.
-
-Questions
-- use a third-party coverage tool (e.g. Clover) to compare your results to (explain differences)
-- which methods have full line coverage?
-- which methods are not covered at all, and why does it matter (if so)?
-- what are the drawbacks of source-based instrumentation?
-
-Tips:
-- create a shadow JPacman project (e.g. jpacman-instrumented) to write out the transformed source files.
-  Then run the tests there. You can update source locations l = |project://jpacman/....| to point to the 
-  same location in a different project by updating its authority: l.authority = "jpacman-instrumented"; 
-
-- to insert statements in a list, you have to match the list itself in its context, e.g. in visit:
-     case (Block)`{<BlockStm* stms>}` => (Block)`{<BlockStm insertedStm> <BlockStm* stms>}` 
-  
-- or (easier) use the helper function provide below to insert stuff after every
-  statement in a statement list.
-
-- to parse ordinary values (int/str etc.) into Java15 syntax trees, use the notation
-   [NT]"...", where NT represents the desired non-terminal (e.g. Expr, IntLiteral etc.).  
-
-*/
-
 /*****************************************************************************/
 /*					         Global Variables						       */
 /*****************************************************************************/
 
 // Name of singleton to be imported in all files.
 str importString = "nl.tudelft.DynamicLogger";
-
-// The set of fully covered methods (line coverage).
-set[loc] fullyCoveredMethods = {};
-
-// The set of non-covered methods (line coverage).
-set[loc] nonCoveredMethods = {};
 
 /*****************************************************************************/
 /*					     Instrumentation Functions						   */
@@ -220,7 +175,7 @@ void dynMethodCoverage(loc project, loc csv) {
 		int hit = size({ m | <f, loc m> <- hitMethods });
 		println("<hit>/<total>\t\t<f>");
 	}
-	println("--------------------------------------------------------------------------------\n");
+	println("--------------------------------------------------------------------------------");
 	println("Overall Ratio (Covered methods / Total methods): <size(hitMethods)>/<size(totalMethods)>");
 }
 
@@ -253,16 +208,9 @@ void dynLineCoverage(loc project, loc csv) {
 			int total = size({ l | <f, m, loc l> <- totalLines });
 			int hit = size({ l | <f, m, loc l> <- hitLines });
 			println("\t\t\t\t<hit>/<total>\t\t<m>");
-			
-			if (total == hit && total > 0) {
-				fullyCoveredMethods += m;
-			}
-			if (total == 0) {
-				nonCoveredMethods += m;
-			}
 		}
 	}
-	println("--------------------------------------------------------------------------------\n");
+	println("--------------------------------------------------------------------------------");
 	println("Overall Ratio (Covered lines / Total lines): <size(hitLines)>/<size(totalLines)>");
 }
 
@@ -274,31 +222,6 @@ void a1b (loc project) {
 	// 2. Show Line Coverage.
 	dynLineCoverage(project, |project://jpacman-instrumented/dynLineLogs.csv|);
 	
-	// 3. Answer Questions.
-	println("Which methods have full line coverage?");
-	println("--------------------------------------------------------------------------------");
-	for (m <- fullyCoveredMethods) {
-		println("<m>");
-	}
-	println("--------------------------------------------------------------------------------\n");
-	
-	println("Which methods are not covered at all?");
-	for (m <- nonCoveredMethods) {
-		println("<m>");
-	}
-	println("--------------------------------------------------------------------------------\n");
-	
-	println("What are the drawbacks of source-based instrumentation?");
-	println("--------------------------------------------------------------------------------");
-	println("1. You need a working installation of the project.");
-	println("2. An assessor may not have access to required software or hardware.");
-	println("3. The build or deployment process may not be reproducible.");
-	println("4. The software might require proprietary libraries under a non-transferrable license.");
-	println("5. Instrumentation might not be feasible for software running on embedded devices.");
-	println(" ( via. \"Static Estimation of Test Coverage\" by Tiago L. Alves & Joost Visser)");
-	
 }
-
-
 
 
